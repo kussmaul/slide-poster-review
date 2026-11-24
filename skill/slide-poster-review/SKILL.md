@@ -13,3 +13,6 @@ Work in progress. Only the rendering pipeline exists so far.
 1. Render: `python scripts/render.py INPUT --out OUTPUT_ROOT`. Show the user every notice
    printed to stderr (also in `manifest.json` → `notices`).
 2. Extract text: `python scripts/extract_text.py OUTPUT_DIR` → `text.json`.
+3. Font size: `python scripts/font_size.py OUTPUT_DIR [--print-size 48x36in]` → `font_size.json`.
+   Viewing presets are in [rubrics/presets.md](rubrics/presets.md); evidence for them is in
+   [references/legibility-thresholds.md](references/legibility-thresholds.md).

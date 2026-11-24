@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skill" / "slide-poster-review"
 sys.path.insert(0, str(SKILL / "scripts"))
 import extract_text  # noqa: E402
+import font_size  # noqa: E402
 import render  # noqa: E402
 
 INPUTS = ROOT / "test-inputs"
@@ -188,3 +189,75 @@ def test_skill_validates():
 def test_skill_folder_has_no_dev_files():
     shipped = {p.name for p in SKILL.iterdir()}
     assert not shipped & {"tests", "test-inputs", "output", ".venv", "DESIGN.md", "QUEUE.md"}
+
+
+# ---------- font size ----------
+
+def test_presets_and_levels():
+    presets = font_size.load_presets()
+    assert {n for n, p in presets.items() if p["default"]} == {"slides-8H", "poster-1.5m"}
+    b = presets["slides-8H"]["bounds"]
+    assert b == [10, 16, 22]
+    # At 8H, the bounds correspond to about 18 / 29 / 40 pt at 0.7 em on a 540 pt slide.
+    for pt, bound in zip((18, 28.7, 39.5), b):
+        assert font_size.cap_angle_arcmin(pt * 0.7 / 540, 8) == pytest.approx(bound, abs=0.05)
+    assert font_size.level_for(b[1] * 0.995, b) == 3  # 1% tolerance (39.96 pt counts as 40)
+    assert font_size.level_for(b[1] * 0.98, b) == 2
+
+
+def test_print_size_parsing():
+    assert font_size.parse_print_size("48x36in") == pytest.approx((1.2192, 0.9144))
+    assert font_size.parse_print_size("120 x 90 cm") == pytest.approx((1.2, 0.9))
+    with pytest.raises(ValueError):
+        font_size.parse_print_size("A0")
+
+
+def test_poster_font_size(posters_out):
+    full = load(font_size.measure(posters_out).parent, "font_size.json")
+    assert full["items"]["FS-1"]["level"] == 3 and full["findings"] == []
+    assert any(n["code"] == "FS-PRINT-SIZE" for n in full["notices"])
+    # Printing at 3/4 size makes text smaller: some blocks drop below L3.
+    small = load(font_size.measure(posters_out, print_size="36x27in").parent, "font_size.json")
+    assert small["m_per_pt"] == pytest.approx(full["m_per_pt"] * 0.75)
+    assert small["findings"] and small["findings"][0]["summary"].startswith("FS-1: 9 text blocks")
+
+
+@pytest.fixture(scope="module")
+def ael_pptx(tmp_path_factory):
+    src = AEL.with_suffix(".pptx")
+    if not src.exists() or not render._powerpoint_available():
+        pytest.skip("needs AEL pptx and PowerPoint")
+    d = render.render(src, tmp_path_factory.mktemp("ael"))
+    extract_text.extract(d)
+    font_size.measure(d)
+    return d
+
+
+def test_footers_are_supporting_and_hidden_not_scored(ael_pptx):
+    r = load(ael_pptx, "font_size.json")
+    assert r["items"]["FS-2"]["units"] == 81  # 98 slides - 17 hidden, all with the footer
+    fs2 = next(f for f in r["findings"] if f["id"] == "FS-2")
+    assert "(footer)" in fs2["summary"]
+    body_smallest = [u["body"]["smallest"]["text"] for u in r["units"] if "body" in u]
+    assert "Clif Kussmaul" not in body_smallest
+
+
+def test_invisible_text_is_not_scored(genai_pair):
+    r = load(font_size.measure(genai_pair["pptx"]).parent, "font_size.json")
+    tiny = next(n for n in r["notices"] if n["code"] == "FS-TINY")
+    assert "Countdown timer" in tiny["message"]
+    assert all(u["body"]["smallest"]["arcmin"] >= 1 for u in r["units"] if "body" in u)
+
+
+def test_text_kinds_named_in_findings(ael_pptx):
+    r = load(ael_pptx, "font_size.json")
+    fs1 = next(f for f in r["findings"] if f["id"] == "FS-1")
+    assert "bullets" in fs1["summary"] and "labels" in fs1["summary"]
+    kinds = {u["page"]: u["body"]["smallest"]["kind"] for u in r["units"] if "body" in u}
+    assert kinds[13] == "bullet"  # "●interest in math"
+    assert kinds[20] == "label"   # "Partner  Worksheet Highlight  Read"
+
+
+def test_substitute_font_named(genai_pair):
+    r = load(font_size.measure(genai_pair["pptx"]).parent, "font_size.json")
+    assert any("substitute for Gill Sans" in f["summary"] for f in r["findings"])

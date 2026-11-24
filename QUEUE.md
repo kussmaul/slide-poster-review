@@ -1,17 +1,19 @@
 # slide-poster-review — queue
 
 ## 11–20 Design
-- 12: Check the angle thresholds (≈7′/12′/20′) against vision and legibility research. So far they're only calibrated against rules of thumb.
+- 12: Check the angle thresholds against vision and legibility research. Done: adopted 10/16/22′ at 8H for slides and 1.5 m for posters (evidence in `references/legibility-thresholds.md`). Revisit after validation (29).
 - 13: Find or draft example context rubrics for the format and content sections: one from a POGIL-style source, one conference or organization, and one course or lab.
 
 ## 21–40 Build
 - 21: Write the rendering pipeline: PPTX/PDF → page images, plus text runs with their sizes and colors. Scale by slide height or poster print factor.
-- 22: Write contrast and color-vision scripts that sample rendered pixels, including text inside images (OCR for text height). Also OCR text that the PDF stores as outlines: PowerPoint exports rotated chart axis labels as filled paths, so they never appear in `text.json`.
+- 22: Write contrast and color-vision scripts that sample rendered pixels, including text inside images (OCR for text height). Also OCR text that the PDF stores as outlines: PowerPoint exports rotated chart axis labels as filled paths, so they never appear in `text.json`. Also consider requiring one level more for colored or low-contrast text (MIL-STD-1472F raises its minimum from 16′ to 21′ for colored characters); see `references/legibility-thresholds.md`.
 - 23: Write SKILL.md, `rubrics/default.md`, `rubrics/presets.md`, and the reference notes.
 - 24: Write the readability script: CEFR word-level profile, problem patterns, and Flesch, Flesch-Kincaid and language adaptations as secondary signals. Verify what `textstat` covers.
 - 25: Build test decks and posters with known flaws, and run evals.
-- 26: Add the initial extra checks: cognitive load, data graphics, accessibility metadata, consistency.
+- 26: Add the initial extra checks: cognitive load, data graphics, accessibility metadata, consistency. Include title vs. body size (hierarchy) under consistency; font_size.py already tags titles, bullets, and sub-bullets.
 - 27: Build a solid test set: PPTX and Google Slides sources, plus PDFs exported from each. Cover 4:3 and 16:9 slides, and posters at several print sizes.
+- 28: Font-size measure (`scripts/font_size.py`): cap-height visual angle; L1–L4 bounds 10/16/22′; defaults 8H for slides and 1.5 m for posters, plus 12H and 2 m presets; FS-1 body text vs FS-2 supporting text; findings name the kind of small text (bullets, labels, ...). Done; explained in README.md.
+- 29: Validate against human judgment. Collect real decks and posters that experts rate as good or bad, run the skill on them, and compare scores and issues with the ratings (agreement, misses, false alarms). Use the results to tune thresholds and weights. Complements 25, which uses decks built with known flaws.
 
 ## 41–60 Future
 - 41: Add connectors for live Google Slides, and maybe OneDrive/SharePoint.

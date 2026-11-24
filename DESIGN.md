@@ -33,8 +33,12 @@ Separate from the POGIL claude-skills project (review / simulate / split).
 
 ## Measures (initial)
 - **Font size:** visual angle of cap height (0.7 em unless font metrics are available).
-  Default preset = back row at 12H / poster at 2 m; level boundaries 18 / 30 / 50 pt (≈ 7′ / 12′ / 20′).
-  Same distance for all text roles. Scale by real slide height or poster print factor.
+  Level boundaries 10 / 16 / 22′ (display standards and reading research; see references/legibility-thresholds.md).
+  Default presets: slides back row at 8H (≈ 18 / 29 / 40 pt), posters at 1.5 m; optional 12H and 2 m presets.
+  Each slide is rated by its smallest body text; an item's level is the level that 90% of slides reach.
+  Same distance for all text roles.
+  Thresholds are universal (universal design): they never vary by audience; intake audience affects
+  readability only. Scale by real slide height or poster print factor.
   Includes text inside images (OCR text height); "check manually" only when measurement fails,
   and counted as evidence of a potential problem.
 - **Contrast:** WCAG 2.x (1.4.3 text, 1.4.11 non-text), sampled from rendered pixels; ratios never rounded.
