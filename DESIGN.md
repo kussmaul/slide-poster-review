@@ -5,7 +5,14 @@ Separate from the POGIL claude-skills project (review / simulate / split).
 
 ## Inputs
 - .pptx (python-pptx for structure) and PDF; Google Slides via exported .pptx/PDF for now.
-- Everything is also rendered to page images (LibreOffice → PDF → PNG) for pixel-based checks.
+- Everything is also rendered to page images (→ PDF → PNG via PyMuPDF) for pixel-based checks.
+  PPTX → PDF backends, in order: PowerPoint (Windows COM), LibreOffice if already installed,
+  else ask the user to export a PDF. Full LibreOffice is not a required dependency.
+- Text runs (text, size, font, color, position) are read from the rendered PDF, so autofit and
+  master/placeholder inheritance are already applied. python-pptx adds what the PDF loses:
+  hidden slides, titles, alt text, requested fonts (to detect substitution).
+- Inputs are one slide or poster per page; handout PDFs (several slides per page) are rejected for now.
+  DOCX / Google Docs are out of scope for now.
 - Intake asks for: viewing preset, audience (students vs. experts; L1 vs. L2 English), print size (posters).
 - Key ideas / learning objectives: inferred from content or an abstract; flag when unclear.
 
