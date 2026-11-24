@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+SKILL = ROOT / "skill" / "slide-poster-review"
+sys.path.insert(0, str(SKILL / "scripts"))
 import extract_text  # noqa: E402
 import render  # noqa: E402
 
@@ -46,7 +47,8 @@ def test_pptx_manifest(posters_out):
         assert (p["width_px"], p["height_px"]) == (7200, 5400)
         assert p["hidden"] is False
         assert (posters_out / p["image"]).exists()
-    assert m["warnings"] == []
+    assert m["source_app"]["app"] == "powerpoint"
+    assert m["notices"] == []
 
 
 @needs(POSTERS)
@@ -67,8 +69,10 @@ def test_text_runs(posters_out):
 @needs(POSTERS)
 @needs_pptx_backend
 def test_pptx_structure(posters_out):
+    fonts = load(posters_out, "manifest.json")["fonts"]
+    assert fonts["not_in_pdf"] == ["Calibri Light"]  # theme heading font, unused
+    assert fonts["not_installed"] == []  # ...but installed, so not a substitution
     x = load(posters_out, "text.json")["pptx"]
-    assert x["fonts_not_in_pdf"] == ["Calibri Light"]  # theme heading font, unused
     s2 = {sh["name"]: sh for sh in x["slides"][1]["shapes"]}
     assert s2["Picture 2"]["alt_text"].startswith("CS-POGIL logo")
     assert s2["Picture 13"]["alt_text"] is None
@@ -97,3 +101,90 @@ def test_docx_out_of_scope(tmp_path):
     with pytest.raises(render.RenderError) as e:
         render.render(f, tmp_path / "out")
     assert e.value.code == 2
+
+
+# ---------- Google Slides exports (same deck as .pptx, .pdf, .odp) ----------
+
+GENAI = INPUTS / "2026 Fall - Education & GenAI"
+AEL = INPUTS / "2026-11 Active & Engaged Learning (3h)"
+
+
+@pytest.fixture(scope="module")
+def genai_pair(tmp_path_factory):
+    pptx, pdf = GENAI.with_suffix(".pptx"), GENAI.with_suffix(".pdf")
+    if not (pptx.exists() and pdf.exists()):
+        pytest.skip("missing GenAI exports")
+    if not render._powerpoint_available():
+        pytest.skip("needs PowerPoint")
+    root = tmp_path_factory.mktemp("genai")
+    out = {}
+    for src in (pptx, pdf):
+        d = render.render(src, root)
+        extract_text.extract(d)
+        out[src.suffix[1:]] = d
+    return out
+
+
+def test_output_dirs_do_not_collide(genai_pair):
+    assert genai_pair["pptx"] != genai_pair["pdf"]
+
+
+def test_hidden_slides_kept_and_flagged(genai_pair):
+    mx, mp = load(genai_pair["pptx"], "manifest.json"), load(genai_pair["pdf"], "manifest.json")
+    assert mx["page_count"] == mp["page_count"] == 66  # Google's PDF includes skipped slides
+    assert [p["index"] for p in mx["pages"] if p["hidden"]] == [1, 13, 19, 23, 24, 25, 30, 36, 37, 38]
+    assert mx["hidden_flags_known"] and not mp["hidden_flags_known"]
+
+
+def test_font_substitution_warned(genai_pair):
+    mx = load(genai_pair["pptx"], "manifest.json")
+    assert mx["fonts"]["substituted"] == ["Gill Sans"]
+    sub = next(n for n in mx["notices"] if n["code"] == "FONT-SUB")
+    assert sub["level"] == "warning" and "Gill Sans" in sub["message"]
+    assert "Google Slides as PDF" in sub["advice"]
+
+
+def test_source_app_notices(genai_pair):
+    mx, mp = load(genai_pair["pptx"], "manifest.json"), load(genai_pair["pdf"], "manifest.json")
+    assert mx["source_app"]["app"] == mp["source_app"]["app"] == "google_slides"
+    assert mx["source_app"]["confidence"] == "likely" and mp["source_app"]["confidence"] == "high"
+    assert {n["code"] for n in mx["notices"]} == {"SRC-GSLIDES-PPTX", "FONT-SUB"}
+    pdf_notice = next(n for n in mp["notices"] if n["code"] == "SRC-PDF")
+    assert "Skipped" in pdf_notice["message"] and ".pptx" in pdf_notice["advice"]
+
+
+def test_cap_height_from_subset_fonts_without_cmap(genai_pair):
+    fonts = load(genai_pair["pdf"], "text.json")["fonts"]
+    assert fonts["ArialMT"]["cap_height_source"] == "glyph-gid"
+    assert fonts["ArialMT"]["cap_height_em"] == pytest.approx(0.716, abs=0.002)
+    assert fonts["Calibri"]["cap_height_source"] == "family"
+
+
+def test_font_sizes_agree_across_exports(genai_pair):
+    tx, tp = load(genai_pair["pptx"], "text.json"), load(genai_pair["pdf"], "text.json")
+    diffs = []
+    for a, b in zip(tp["pages"], tx["pages"]):
+        sizes = {s["text"].strip(): s["size_pt"] for s in a["spans"]}
+        diffs += [abs(s["size_pt"] - sizes[k]) for s in b["spans"]
+                  if len(k := s["text"].strip()) > 3 and k in sizes]
+    assert len(diffs) > 500 and sorted(diffs)[int(len(diffs) * 0.95)] < 0.5
+
+
+@needs(AEL.with_suffix(".odp"))
+def test_odp_without_libreoffice_is_clear(tmp_path):
+    if render._find_soffice():
+        pytest.skip("LibreOffice installed")
+    with pytest.raises(render.RenderError, match="odp"):
+        render.render(AEL.with_suffix(".odp"), tmp_path)
+
+
+# ---------- packaging ----------
+
+def test_skill_validates():
+    skills_ref = pytest.importorskip("skills_ref")
+    assert skills_ref.validate(SKILL) == []
+
+
+def test_skill_folder_has_no_dev_files():
+    shipped = {p.name for p in SKILL.iterdir()}
+    assert not shipped & {"tests", "test-inputs", "output", ".venv", "DESIGN.md", "QUEUE.md"}

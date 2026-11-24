@@ -15,7 +15,11 @@ try {
     $app = New-Object -ComObject PowerPoint.Application
     # Open(FileName, ReadOnly, Untitled, WithWindow)
     $pres = $app.Presentations.Open($in, -1, 0, 0)
-    # ExportAsFixedFormat can't be late-bound from PowerShell, so set print options and SaveAs PDF.
+    # ExportAsFixedFormat can't be late-bound from PowerShell, and SaveAs PDF ignores
+    # PrintHiddenSlides, so un-hide slides in this read-only in-memory copy (the file is untouched).
+    foreach ($s in $pres.Slides) {
+        if ($s.SlideShowTransition.Hidden -ne 0) { $s.SlideShowTransition.Hidden = 0 }
+    }
     $pres.PrintOptions.PrintHiddenSlides = -1      # msoTrue
     $pres.PrintOptions.OutputType = 1              # ppPrintOutputSlides (one slide per page)
     $pres.PrintOptions.FrameSlides = 0             # msoFalse

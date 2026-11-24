@@ -7,9 +7,8 @@ Reads OUTPUT_DIR/manifest.json and source.pdf; writes OUTPUT_DIR/text.json with:
     fonts   per PDF font: base name, cap height (em) from embedded font metrics when available
     pages   per page: spans with text, font, size_pt, bold/italic, color (#rrggbb), alpha,
             bbox and origin (PDF points, origin top-left), direction
-    pptx    (PPTX sources only) per slide: hidden, title, non-text shapes with alt text /
-            decorative flags; requested fonts and which of them are missing from the PDF
-            (i.e. substituted by the renderer)
+    pptx    (PPTX sources only) per slide: hidden, title, layout, notes, and non-text shapes
+            with alt text / decorative flags. (Font substitution is reported in manifest.json.)
 
 Not included (needs OCR; see the contrast/OCR step): text inside images, and text the PDF
 draws as outlines (e.g. PowerPoint exports rotated chart axis labels as filled paths).
@@ -18,7 +17,6 @@ from __future__ import annotations
 
 import io
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -33,8 +31,14 @@ FLAT_TOP_CAPS = "HIEFLT"
 
 # ---------- fonts ----------
 
-def cap_height_em(buf: bytes) -> tuple[float | None, str | None]:
-    """Cap height as a fraction of the em, and where it came from ('os2' or 'glyph')."""
+def cap_height_em(buf: bytes, cap_gid: int | None = None) -> tuple[float | None, str | None]:
+    """Cap height as a fraction of the em, and where it came from.
+
+    'os2'        OS/2 sCapHeight
+    'glyph'      top of a flat-topped capital found through the font's cmap
+    'glyph-gid'  same, but the glyph id comes from the PDF text (subset fonts without a cmap,
+                 e.g. Google Slides exports)
+    """
     try:
         from fontTools.ttLib import TTFont
         font = TTFont(io.BytesIO(buf), lazy=True)
@@ -43,21 +47,44 @@ def cap_height_em(buf: bytes) -> tuple[float | None, str | None]:
         if os2 is not None and os2.version >= 2 and getattr(os2, "sCapHeight", 0) > 0:
             return os2.sCapHeight / upm, "os2"
         if "glyf" in font:
-            cmap = font.getBestCmap() or {}
-            for ch in FLAT_TOP_CAPS:
-                g = cmap.get(ord(ch))
-                if g:
-                    glyph = font["glyf"][g]
-                    if getattr(glyph, "yMax", 0) > 0:
-                        return glyph.yMax / upm, "glyph"
+            glyf = font["glyf"]
+            cmap = font.getBestCmap() if "cmap" in font else None
+            for ch in FLAT_TOP_CAPS if cmap else ():
+                if (g := cmap.get(ord(ch))) and getattr(glyf[g], "yMax", 0) > 0:
+                    return glyf[g].yMax / upm, "glyph"
+            order = font.getGlyphOrder()
+            if cap_gid is not None and cap_gid < len(order):
+                g = glyf[order[cap_gid]]
+                if getattr(g, "yMax", 0) > 0:
+                    return g.yMax / upm, "glyph-gid"
     except Exception:
         pass  # bare CFF / Type1 / Type3 fonts: leave to the default
     return None, None
 
 
+def _cap_glyph_ids(doc: pymupdf.Document, fonts: set[str]) -> dict[str, int]:
+    """For each font, the glyph id of a flat-topped capital the document actually uses."""
+    found: dict[str, tuple[int, int]] = {}  # font -> (rank in FLAT_TOP_CAPS, gid)
+    for page in doc:
+        for span in page.get_texttrace():
+            name = base_font_name(span["font"])
+            if name not in fonts:
+                continue
+            for ucs, gid, *_ in span["chars"]:
+                ch = chr(ucs) if ucs > 0 else ""
+                if ch and ch in FLAT_TOP_CAPS and gid >= 0:
+                    rank = FLAT_TOP_CAPS.index(ch)
+                    if name not in found or rank < found[name][0]:
+                        found[name] = (rank, gid)
+        if all(found.get(f, (99,))[0] == 0 for f in fonts):
+            break  # an 'H' for every font
+    return {f: gid for f, (_, gid) in found.items()}
+
+
 def font_table(doc: pymupdf.Document) -> dict[str, dict]:
     """PDF font name (as it appears in spans) -> metrics."""
     table: dict[str, dict] = {}
+    buffers: dict[str, bytes] = {}
     for page in doc:
         for xref, ext, ftype, name, *_ in page.get_fonts():
             base = base_font_name(name)
@@ -66,13 +93,28 @@ def font_table(doc: pymupdf.Document) -> dict[str, dict]:
             cap, src = None, None
             if xref:
                 try:
-                    _, _, _, buf = doc.extract_font(xref)
+                    buf = doc.extract_font(xref)[3]
                     if buf:
+                        buffers[base] = buf
                         cap, src = cap_height_em(buf)
                 except Exception:
                     pass
             table[base] = {"type": ftype, "embedded": ext not in ("n/a", ""),
                            "cap_height_em": cap, "cap_height_source": src}
+    unresolved = {f for f, v in table.items() if v["cap_height_em"] is None and f in buffers}
+    if unresolved:
+        for f, gid in _cap_glyph_ids(doc, unresolved).items():
+            cap, src = cap_height_em(buffers[f], gid)
+            table[f].update(cap_height_em=cap, cap_height_source=src)
+    # Still unknown (e.g. no flat-topped capital used in that face): borrow from a sibling
+    # face of the same family (Calibri <- Calibri-Bold). Differences between faces are ~1%.
+    for f, v in table.items():
+        if v["cap_height_em"] is None:
+            fam = f.split("-")[0].split(",")[0]
+            sib = next((w for g, w in table.items() if g != f and w["cap_height_source"]
+                        and w["cap_height_source"] != "family" and g.split("-")[0].split(",")[0] == fam), None)
+            if sib:
+                v.update(cap_height_em=sib["cap_height_em"], cap_height_source="family")
     return table
 
 
@@ -106,10 +148,6 @@ def page_spans(page: pymupdf.Page) -> list[dict]:
 
 
 # ---------- PPTX structure ----------
-
-def _norm(name: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", name.lower())
-
 
 def _alt_text(shape) -> tuple[str | None, bool]:
     """(alt text, decorative) from the shape's cNvPr element."""
@@ -150,35 +188,11 @@ def _shape_records(shapes, in_group: bool = False) -> list[dict]:
     return out
 
 
-def _theme_fonts(prs) -> dict[str, str]:
-    """Theme major/minor latin fonts, keyed by the '+mj-lt' / '+mn-lt' aliases runs use."""
-    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
-    fonts = {}
-    try:
-        theme = prs.slide_master.part.part_related_by(RT.THEME)
-        xml = theme.blob.decode("utf-8", "replace")
-        for key, tag in (("+mj-lt", "majorFont"), ("+mn-lt", "minorFont")):
-            m = re.search(rf"<a:{tag}>\s*<a:latin typeface=\"([^\"]+)\"", xml)
-            if m:
-                fonts[key] = m.group(1)
-    except Exception:
-        pass
-    return fonts
-
-
-def pptx_structure(src: Path, pdf_fonts: list[str]) -> dict | None:
+def pptx_structure(src: Path) -> dict | None:
     if src.suffix.lower() not in {".pptx", ".pptm"} or not src.exists():
         return None
     from pptx import Presentation
     prs = Presentation(str(src))
-    theme = _theme_fonts(prs)
-    requested = set(theme.values())
-    for xml_part in [prs.slide_master.part] + [s.part for s in prs.slides]:
-        for typeface in xml_part._element.xpath(".//a:latin/@typeface"):
-            requested.add(theme.get(typeface, typeface))
-    requested = {f for f in requested if f and not f.startswith("+")}
-    pdf_norm = [_norm(f) for f in pdf_fonts]
-    missing = sorted(f for f in requested if not any(p.startswith(_norm(f)) for p in pdf_norm))
 
     slides = []
     for i, s in enumerate(prs.slides, 1):
@@ -191,13 +205,7 @@ def pptx_structure(src: Path, pdf_fonts: list[str]) -> dict | None:
             "shapes": _shape_records(s.shapes),
             "has_notes": s.has_notes_slide and bool(s.notes_slide.notes_text_frame.text.strip()),
         })
-    return {
-        "theme_fonts": theme,
-        "requested_fonts": sorted(requested),
-        # Requested fonts not found in the PDF: either unused or substituted by the renderer.
-        "fonts_not_in_pdf": missing,
-        "slides": slides,
-    }
+    return {"slides": slides}
 
 
 # ---------- main ----------
@@ -213,8 +221,7 @@ def extract(out_dir: Path) -> Path:
         "source": manifest["source"],
         "fonts": fonts,
         "pages": pages,
-        "pptx": pptx_structure(Path(manifest["source"]), manifest["pdf_fonts"])
-        if manifest["source_type"] == "pptx" else None,
+        "pptx": pptx_structure(Path(manifest["source"])),
     }
     path = out_dir / "text.json"
     path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")

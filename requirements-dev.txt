@@ -1,0 +1,3 @@
+-r skill/slide-poster-review/requirements.txt
+pytest>=8
+skills-ref>=0.1.1

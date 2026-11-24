@@ -24,4 +24,7 @@
 - 48: Check POGIL facilitation slides for slides that reveal answers to activity questions.
 - 49: Handle handout PDFs with several slides per page: find the slide frames, split them out, and scale each by its frame height. For now, handouts are detected and rejected.
 - 50: Review DOCX and Google Docs documents (handouts, print reading). Needs its own viewing preset.
-- 51: Add render backends for other platforms: PowerPoint on macOS, and check whether a slim LibreOffice install is enough.
+- 51: Add render backends for other platforms: PowerPoint on macOS, and check whether a slim LibreOffice install is enough. Note that PowerPoint 2019 can't open Google's .odp exports, so .odp needs LibreOffice.
+- 52: Text normalization for the readability step. PowerPoint's PDFs attach bullet glyphs to the next word ("●How"). Google's PDFs keep emoji as text. Numbered lists can be numbered differently in the two exports (Google "4. 5." vs PowerPoint "1. 2." on the same slide).
+- 53 (deferred): Consider add-ons that run this skill from inside each app: a PowerPoint add-in, a Google Slides add-on, and maybe Canva. Each would send the open deck (or an export of it) and show the scorecard in a side panel.
+- 54 (deferred): Let frequent users shorten or suppress repeated notices, e.g. a per-user setting listing notice codes to hide (SRC-PDF) or a "brief" mode. Warnings that change results (FONT-SUB) should still get at least a one-line mention.

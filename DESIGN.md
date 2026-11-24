@@ -11,6 +11,15 @@ Separate from the POGIL claude-skills project (review / simulate / split).
 - Text runs (text, size, font, color, position) are read from the rendered PDF, so autofit and
   master/placeholder inheritance are already applied. python-pptx adds what the PDF loses:
   hidden slides, titles, alt text, requested fonts (to detect substitution).
+- Font substitution matters: a missing font (e.g. Gill Sans) changes line breaks and can push
+  text off the slide. Flag it as "substituted" when the font is requested, not installed, and absent
+  from the PDF, and warn that results may not match what the audience sees.
+- PDFs exported by the authoring app (e.g. Google Slides) keep the true fonts and layout, but they
+  include hidden/skipped slides without marking them, and they carry no alt text.
+- Users normally provide one format, and results from different formats are never merged.
+  Instead, the pipeline detects which app made the file (PDF creator; `docProps/app.xml`, which is
+  missing in Google Slides PPTX exports) and reports notices `{code, level, message, advice}`:
+  what this format can't show, and which format or export method to use instead.
 - Inputs are one slide or poster per page; handout PDFs (several slides per page) are rejected for now.
   DOCX / Google Docs are out of scope for now.
 - Intake asks for: viewing preset, audience (students vs. experts; L1 vs. L2 English), print size (posters).
@@ -45,12 +54,16 @@ Separate from the POGIL claude-skills project (review / simulate / split).
 - No rewrites or specific suggested edits (users may accept them blindly).
 
 ## Structure
+The skill follows the Agent Skills format (agentskills.io) and lives in its own subfolder, so dev
+files don't ship with it. `tests/test_pipeline.py` runs `skills-ref` to validate it.
 ```
-slide-poster-review/
+skill/slide-poster-review/     ← the shipped skill (folder name = `name` in SKILL.md)
   SKILL.md          intake → render → measure → judge → scorecard
+  requirements.txt  runtime Python deps
   rubrics/          default.md, presets.md
   references/       WCAG, 8H, ADA, CEFR notes + links
   scripts/          render, extract_text, font_size, contrast, cvd_sim, readability
+tests/  test-inputs/ (local, gitignored)  DESIGN.md  QUEUE.md  requirements-dev.txt
 ```
 
 ## Open / verify
