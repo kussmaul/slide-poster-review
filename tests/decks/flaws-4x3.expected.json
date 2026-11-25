@@ -1,0 +1,156 @@
+{
+  "deck": "flaws-4x3.pptx",
+  "kind": "slides",
+  "hidden": [
+    10
+  ],
+  "expect": [
+    {
+      "measure": "font_size",
+      "page": 1,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "key": "body",
+      "level": 4,
+      "note": ""
+    },
+    {
+      "measure": "font_size",
+      "page": 2,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "font_size",
+      "page": 2,
+      "key": "body",
+      "level": 4,
+      "note": "40 pt: the same level as on 16:9 slides of the same height"
+    },
+    {
+      "measure": "contrast",
+      "page": 2,
+      "key": "body",
+      "level": 4,
+      "note": ""
+    },
+    {
+      "measure": "contrast",
+      "page": 2,
+      "key": "supporting",
+      "level": 4,
+      "note": "black footer"
+    },
+    {
+      "measure": "layout",
+      "page": 2,
+      "key": "LY-1",
+      "level": 4,
+      "note": "the footer doesn't collide"
+    },
+    {
+      "measure": "font_size",
+      "page": 3,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "font_size",
+      "page": 3,
+      "key": "body",
+      "level": 3,
+      "note": "32 pt bullets"
+    },
+    {
+      "measure": "font_size",
+      "page": 4,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "font_size",
+      "page": 4,
+      "key": "body",
+      "level": 2,
+      "note": "22 pt bullets"
+    },
+    {
+      "measure": "font_size",
+      "page": 5,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "font_size",
+      "page": 5,
+      "key": "body",
+      "level": 1,
+      "note": "14 pt bullets"
+    },
+    {
+      "measure": "font_size",
+      "page": 6,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "layout",
+      "page": 6,
+      "key": "LY-1",
+      "level": 1,
+      "note": "12 bullets overflow a 4 in box and run over the footer"
+    },
+    {
+      "measure": "font_size",
+      "page": 7,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "layout",
+      "page": 7,
+      "key": "LY-1",
+      "level": 1,
+      "note": "filled box 1.2 in high holding about 2 in of text"
+    },
+    {
+      "measure": "font_size",
+      "page": 8,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "layout",
+      "page": 8,
+      "key": "LY-1",
+      "level": 4,
+      "note": "filled box fits; an unfilled text box overflows invisibly"
+    },
+    {
+      "measure": "font_size",
+      "page": 9,
+      "key": "supporting",
+      "level": 2,
+      "note": "20 pt footer and slide number"
+    },
+    {
+      "measure": "layout",
+      "page": 9,
+      "key": "LY-1",
+      "level": 4,
+      "note": "off-slide text is noted (LY-OFFPAGE), not scored"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "deck": "judged-poster-middle.pptx",
+  "kind": "poster",
+  "hidden": [],
+  "expect": [],
+  "print_size": "48x36in",
+  "intake": {
+    "what": "a research poster for a conference",
+    "rubric": "rubrics/examples/conference-poster.md",
+    "print_size": "48x36 in",
+    "call": "landscape posters only, up to 48x36 in"
+  },
+  "judged": {
+    "CN-1": [
+      2,
+      3
+    ],
+    "CL-1": [
+      2,
+      3
+    ],
+    "DG-1": [
+      2,
+      3
+    ],
+    "CO-3": [
+      2,
+      3
+    ],
+    "RD-4": [
+      2,
+      3
+    ],
+    "FM-1": [
+      2,
+      3
+    ],
+    "FM-2": [
+      2,
+      3
+    ],
+    "FM-3": [
+      2,
+      3
+    ]
+  },
+  "key_ideas": [
+    [
+      "higher",
+      "6 points",
+      "six points",
+      "scored",
+      "better"
+    ],
+    [
+      "more often",
+      "came more",
+      "attend",
+      "gained more"
+    ]
+  ]
+}

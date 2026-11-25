@@ -1,0 +1,121 @@
+{
+  "deck": "flaws-slides.pptx",
+  "kind": "slides",
+  "hidden": [
+    13
+  ],
+  "expect": [
+    {
+      "measure": "font_size",
+      "page": 1,
+      "key": "body",
+      "note": "54 pt title, 40 pt subtitle",
+      "level": 4
+    },
+    {
+      "measure": "contrast",
+      "page": 1,
+      "key": "body",
+      "note": "",
+      "level": 4
+    },
+    {
+      "measure": "font_size",
+      "page": 2,
+      "key": "body",
+      "note": "40 pt",
+      "level": 4
+    },
+    {
+      "measure": "contrast",
+      "page": 2,
+      "key": "body",
+      "note": "21:1",
+      "level": 4
+    },
+    {
+      "measure": "font_size",
+      "page": 3,
+      "key": "body",
+      "note": "32 pt bullets",
+      "level": 3
+    },
+    {
+      "measure": "font_size",
+      "page": 4,
+      "key": "body",
+      "note": "22 pt bullets",
+      "level": 2
+    },
+    {
+      "measure": "font_size",
+      "page": 5,
+      "key": "body",
+      "note": "14 pt bullets",
+      "level": 1
+    },
+    {
+      "measure": "font_size",
+      "page": 6,
+      "key": "body",
+      "note": "",
+      "level": 3
+    },
+    {
+      "measure": "font_size",
+      "page": 6,
+      "key": "supporting",
+      "note": "10 pt citation",
+      "level": 1
+    },
+    {
+      "measure": "contrast",
+      "page": 7,
+      "key": "body",
+      "note": "#999999 on white, 2.84:1",
+      "level": 1
+    },
+    {
+      "measure": "contrast",
+      "page": 8,
+      "key": "body",
+      "note": "#808080 on white, 3.94:1",
+      "level": 2
+    },
+    {
+      "measure": "contrast",
+      "page": 9,
+      "key": "body",
+      "note": "#6b6b6b on white, 5.33:1",
+      "level": 3
+    },
+    {
+      "measure": "contrast",
+      "page": 10,
+      "key": "body",
+      "note": "white on #ed7d31",
+      "level": 1
+    },
+    {
+      "measure": "contrast",
+      "page": 11,
+      "key": "body",
+      "note": "black over the dark end of a gradient",
+      "level": 1
+    },
+    {
+      "measure": "font_size",
+      "page": 12,
+      "key": "body",
+      "note": "text in an image, about 13 pt on the slide (OCR)",
+      "max_level": 2
+    },
+    {
+      "measure": "contrast",
+      "page": 12,
+      "key": "body",
+      "note": "grey text in an image (OCR)",
+      "max_level": 3
+    }
+  ]
+}

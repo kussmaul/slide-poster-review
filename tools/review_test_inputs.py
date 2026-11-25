@@ -3,7 +3,7 @@
 Usage:
     python tools/review_test_inputs.py [--force]
 
-Includes test-inputs/generated/ (from tools/make_test_decks.py) if present.
+Includes tests/decks/ (from tools/make_test_decks.py).
 
 Intermediate files (PDF, page images, JSON) go to .cache/work/<name>-<ext>/ and are reused
 when inputs are unchanged. test-outputs/ gets one <input file name>.md per input (the scorecard,
@@ -63,7 +63,7 @@ def main() -> int:
     a = ap.parse_args()
     OUTPUTS.mkdir(exist_ok=True)
     rows = []
-    srcs = [p for d in (INPUTS, INPUTS / "generated") if d.exists() for p in d.iterdir()]
+    srcs = [p for d in (INPUTS, ROOT / "tests" / "decks") if d.exists() for p in d.iterdir()]
     for src in sorted(p for p in srcs if p.suffix.lower() in TYPES):
         md, status = review(src, a.force)
         out = OUTPUTS / f"{src.name}.md"

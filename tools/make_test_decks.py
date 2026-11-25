@@ -1,7 +1,11 @@
 """Dev tool: generate small decks with known flaws, plus the levels each should get.
 
 Usage:
-    python tools/make_test_decks.py [OUT_DIR]        # default: test-inputs/generated/
+    python tools/make_test_decks.py [OUT_DIR]        # default: tests/decks/ (tracked)
+
+tests/decks/ is committed so that the decks evals and tests refer to can be opened directly;
+a test regenerates them and fails if the committed copies differ. After changing this file,
+run it with no arguments and commit the updated decks.
 
 Writes, for each deck, NAME.pptx and NAME.expected.json:
     flaws-slides.pptx   16:9 slides: text size and contrast, one flaw per slide, plus controls
@@ -1056,8 +1060,8 @@ def make_judged_poster_poor(out: Path, tmp: Path) -> dict:
 
 def make_all(out: Path) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
-    tmp = out / "_assets"
-    tmp.mkdir(exist_ok=True)
+    tmp = ROOT / ".cache" / "deck-assets"  # pictures placed in the decks; not committed
+    tmp.mkdir(parents=True, exist_ok=True)
     paths = []
     for maker in (make_slides, make_poster, make_color, make_text, make_structure, make_4x3,
                   make_poster_half, make_judged_clear, make_judged_poor, make_judged_middle, make_judged_low,
@@ -1071,7 +1075,7 @@ def make_all(out: Path) -> list[Path]:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    out = Path(argv[0]) if argv else ROOT / "test-inputs" / "generated"
+    out = Path(argv[0]) if argv else ROOT / "tests" / "decks"
     for p in make_all(out):
         print(p)
     return 0

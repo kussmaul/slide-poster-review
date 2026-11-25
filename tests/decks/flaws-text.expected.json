@@ -1,0 +1,77 @@
+{
+  "deck": "flaws-text.pptx",
+  "kind": "slides",
+  "hidden": [
+    10
+  ],
+  "expect": [
+    {
+      "measure": "readability",
+      "page": 1,
+      "key": "RD-2",
+      "level": 4,
+      "note": ""
+    },
+    {
+      "measure": "readability",
+      "page": 2,
+      "key": "RD-2",
+      "level": 4,
+      "note": "three short bullets"
+    },
+    {
+      "measure": "readability",
+      "page": 3,
+      "key": "RD-2",
+      "level": 3,
+      "note": "18-word sentence, wrapped over several lines"
+    },
+    {
+      "measure": "readability",
+      "page": 4,
+      "key": "RD-2",
+      "level": 2,
+      "note": "26-word sentence, wrapped over several lines"
+    },
+    {
+      "measure": "readability",
+      "page": 5,
+      "key": "RD-2",
+      "level": 1,
+      "note": "36-word sentence, wrapped over several lines"
+    },
+    {
+      "measure": "readability",
+      "page": 6,
+      "key": "RD-2",
+      "level": 4,
+      "note": ""
+    },
+    {
+      "measure": "readability",
+      "page": 7,
+      "key": "RD-2",
+      "level": 4,
+      "note": "two acronyms that are never spelled out"
+    },
+    {
+      "measure": "readability",
+      "page": 8,
+      "key": "RD-2",
+      "level": 4,
+      "note": "off-list and C-level words"
+    },
+    {
+      "measure": "readability",
+      "page": 9,
+      "key": "RD-2",
+      "level": 4,
+      "note": "contractions, capitals, email, names, ordinals"
+    }
+  ],
+  "items": {
+    "RD-1": 2,
+    "RD-2": 1,
+    "RD-3": 3
+  }
+}

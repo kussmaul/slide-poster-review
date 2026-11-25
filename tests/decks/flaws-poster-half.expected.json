@@ -1,0 +1,48 @@
+{
+  "deck": "flaws-poster-half.pptx",
+  "kind": "poster",
+  "hidden": [],
+  "print_size": "48x36in",
+  "expect": [
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Introduction at 20 points,",
+      "key": "body",
+      "level": 4,
+      "note": "20 pt in the file, 40 pt printed"
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Methods at 16 points,",
+      "key": "body",
+      "level": 3,
+      "note": "16 pt in the file, 32 pt printed"
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Results at 11 points,",
+      "key": "body",
+      "level": 2,
+      "note": "11 pt in the file, 22 pt printed"
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Details at 7 points,",
+      "key": "body",
+      "level": 1,
+      "note": "7 pt in the file, 14 pt printed"
+    },
+    {
+      "measure": "contrast",
+      "page": 1,
+      "marker": "Introduction",
+      "key": "body",
+      "level": 4,
+      "note": ""
+    }
+  ]
+}

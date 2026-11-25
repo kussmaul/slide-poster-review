@@ -630,6 +630,16 @@ DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx", "flaws-te
          "judged-low.pptx"]  # judged-*: measured checks only; evals in tools/
 
 
+def test_committed_decks_match_generator(tmp_path):
+    """tests/decks/ is committed; it must be exactly what tools/make_test_decks.py makes now."""
+    committed = ROOT / "tests" / "decks"
+    make_test_decks.make_all(tmp_path)
+    fresh = {p.name: p.read_bytes() for p in tmp_path.iterdir() if p.is_file()}
+    have = {p.name: p.read_bytes() for p in committed.iterdir() if p.is_file()} if committed.exists() else {}
+    stale = sorted(n for n in fresh.keys() | have.keys() if fresh.get(n) != have.get(n))
+    assert not stale, f"tests/decks/ is out of date ({', '.join(stale)}): run tools/make_test_decks.py"
+
+
 @pytest.fixture(scope="module")
 def generated(tmp_path_factory):
     if not (render._powerpoint_available() or render._find_soffice()):

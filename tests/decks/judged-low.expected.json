@@ -1,0 +1,62 @@
+{
+  "deck": "judged-low.pptx",
+  "kind": "slides",
+  "hidden": [],
+  "expect": [],
+  "intake": {
+    "rubric": "rubrics/examples/course-presentation.md",
+    "time_limit_minutes": 5
+  },
+  "judged": {
+    "CN-1": [
+      2,
+      2
+    ],
+    "CL-1": [
+      2,
+      2
+    ],
+    "DG-1": [
+      2,
+      2
+    ],
+    "CO-3": [
+      2,
+      2
+    ],
+    "RD-4": [
+      2,
+      2
+    ],
+    "FM-1": [
+      2,
+      2
+    ],
+    "FM-2": [
+      2,
+      2
+    ],
+    "FM-3": [
+      2,
+      2
+    ]
+  },
+  "key_ideas": [
+    [
+      "completion",
+      "completed",
+      "turned in",
+      "hand in",
+      "more homework"
+    ],
+    [
+      "TA",
+      "grading",
+      "hours"
+    ],
+    [
+      "preferred",
+      "72%"
+    ]
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "deck": "judged-middle.pptx",
+  "kind": "slides",
+  "hidden": [],
+  "expect": [],
+  "intake": {
+    "rubric": "rubrics/examples/course-presentation.md"
+  },
+  "judged": {
+    "CN-1": [
+      2,
+      3
+    ],
+    "CL-1": [
+      2,
+      3
+    ],
+    "DG-1": [
+      2,
+      3
+    ],
+    "CO-3": [
+      2,
+      3
+    ],
+    "RD-4": [
+      2,
+      3
+    ],
+    "FM-1": [
+      2,
+      3
+    ],
+    "FM-2": [
+      2,
+      3
+    ]
+  },
+  "omit": [
+    "FM-3"
+  ],
+  "key_ideas": [
+    [
+      "higher",
+      "scored",
+      "scores",
+      "better"
+    ],
+    [
+      "10 minutes",
+      "ten minutes",
+      "little time",
+      "cheap",
+      "low cost",
+      "low-cost"
+    ]
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "deck": "judged-clear.pptx",
+  "kind": "slides",
+  "hidden": [],
+  "expect": [],
+  "intake": {
+    "rubric": "rubrics/examples/course-presentation.md",
+    "time_limit_minutes": 10
+  },
+  "judged": {
+    "CN-1": [
+      3,
+      4
+    ],
+    "CL-1": [
+      3,
+      4
+    ],
+    "DG-1": [
+      3,
+      4
+    ],
+    "CO-3": [
+      3,
+      4
+    ],
+    "RD-4": [
+      3,
+      4
+    ],
+    "FM-1": [
+      3,
+      4
+    ],
+    "FM-2": [
+      3,
+      4
+    ],
+    "FM-3": [
+      3,
+      4
+    ]
+  },
+  "key_ideas": [
+    [
+      "score",
+      "quiz"
+    ],
+    [
+      "2-minute",
+      "two-minute",
+      "minutes",
+      "cheap",
+      "cost",
+      "low-cost"
+    ],
+    [
+      "talked most",
+      "talked more",
+      "gained more",
+      "turns",
+      "more talk",
+      "talking more",
+      "talk more"
+    ]
+  ]
+}

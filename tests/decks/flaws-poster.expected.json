@@ -1,0 +1,103 @@
+{
+  "deck": "flaws-poster.pptx",
+  "kind": "poster",
+  "hidden": [],
+  "expect": [
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Generated test poster",
+      "key": "body",
+      "note": "",
+      "level": 4
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Introduction at 40 points.",
+      "key": "body",
+      "note": "",
+      "level": 4
+    },
+    {
+      "measure": "contrast",
+      "page": 1,
+      "marker": "Introduction at 40 points.",
+      "key": "body",
+      "note": "",
+      "level": 4
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Methods at 32 points.",
+      "key": "body",
+      "note": "",
+      "level": 3
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Results at 22 points.",
+      "key": "body",
+      "note": "",
+      "level": 2
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Details at 14 points.",
+      "key": "body",
+      "note": "",
+      "level": 1
+    },
+    {
+      "measure": "contrast",
+      "page": 1,
+      "marker": "Discussion in light grey.",
+      "key": "body",
+      "note": "",
+      "level": 1
+    },
+    {
+      "measure": "contrast",
+      "page": 1,
+      "marker": "Conclusion in white on yellow.",
+      "key": "body",
+      "note": "",
+      "level": 1
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "References:",
+      "key": "supporting",
+      "note": "14 pt citation",
+      "level": 1
+    },
+    {
+      "measure": "color",
+      "page": 1,
+      "marker": null,
+      "key": "CO-1",
+      "note": "red/green chart series, deuteranopia",
+      "level": 2
+    },
+    {
+      "measure": "font_size",
+      "page": 1,
+      "marker": "Group A",
+      "key": "body",
+      "note": "14 pt chart labels",
+      "level": 1
+    },
+    {
+      "measure": "color",
+      "page": 1,
+      "marker": null,
+      "key": "CO-2",
+      "note": "red word in black text, lightness ratio above 3:1",
+      "level": 3
+    }
+  ]
+}

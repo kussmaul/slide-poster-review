@@ -1,0 +1,57 @@
+{
+  "deck": "judged-poster-clear.pptx",
+  "kind": "poster",
+  "hidden": [],
+  "expect": [],
+  "print_size": "48x36in",
+  "intake": {
+    "what": "a research poster for a conference",
+    "rubric": "rubrics/examples/conference-poster.md",
+    "print_size": "48x36 in",
+    "call": "landscape posters only, up to 48x36 in"
+  },
+  "judged": {
+    "CN-1": [
+      3,
+      4
+    ],
+    "CL-1": [
+      3,
+      4
+    ],
+    "DG-1": [
+      3,
+      4
+    ],
+    "CO-3": [
+      3,
+      4
+    ],
+    "RD-4": [
+      3,
+      4
+    ],
+    "FM-1": [
+      3,
+      4
+    ],
+    "FM-2": [
+      3,
+      4
+    ],
+    "FM-3": [
+      3,
+      4
+    ]
+  },
+  "key_ideas": [
+    [
+      "halved",
+      "half",
+      "fewer errors",
+      "errors",
+      "4.3",
+      "2.1"
+    ]
+  ]
+}

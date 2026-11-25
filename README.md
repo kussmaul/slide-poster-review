@@ -260,13 +260,14 @@ To review everything in `test-inputs/` and read the results as rendered Markdown
 Intermediate files (PDF, page images, JSON) go to `.cache/work/`.
 
 Decks with known flaws come from a generator; each has an `.expected.json` with the level every
-flaw should get, which the tests check:
+flaw should get, which the tests check. The decks are committed in `tests/decks/`; a test fails
+if they differ from what the generator makes, so rerun it after changing the generator:
 
 ```
-.venv/Scripts/python tools/make_test_decks.py     # -> test-inputs/generated/flaws-{slides,poster,color,text,structure}.pptx
+.venv/Scripts/python tools/make_test_decks.py     # -> tests/decks/{flaws,judged}-*.pptx and .expected.json
 ```
 
-`review_test_inputs.py` includes `test-inputs/generated/` if it exists. Open a scorecard in VS Code's
+`review_test_inputs.py` includes `tests/decks/`. Open a scorecard in VS Code's
 Markdown preview (Ctrl+Shift+V) to see the tables.
 
 To run the pipeline by hand:

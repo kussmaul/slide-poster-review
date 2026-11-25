@@ -1,0 +1,44 @@
+{
+  "deck": "judged-poor.pptx",
+  "kind": "slides",
+  "hidden": [],
+  "expect": [],
+  "intake": {
+    "rubric": "rubrics/examples/course-presentation.md",
+    "time_limit_minutes": 2
+  },
+  "judged": {
+    "CN-1": [
+      1,
+      2
+    ],
+    "CL-1": [
+      1,
+      2
+    ],
+    "DG-1": [
+      1,
+      2
+    ],
+    "CO-3": [
+      1,
+      2
+    ],
+    "RD-4": [
+      1,
+      2
+    ],
+    "FM-1": [
+      1,
+      2
+    ],
+    "FM-2": [
+      1,
+      2
+    ],
+    "FM-3": [
+      1,
+      2
+    ]
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "deck": "flaws-color.pptx",
+  "kind": "slides",
+  "hidden": [
+    12
+  ],
+  "expect": [
+    {
+      "measure": "color",
+      "page": 1,
+      "key": "CO-1",
+      "level": 4,
+      "note": ""
+    },
+    {
+      "measure": "color",
+      "page": 1,
+      "key": "CO-2",
+      "level": 4,
+      "note": ""
+    },
+    {
+      "measure": "color",
+      "page": 2,
+      "key": "CO-1",
+      "level": 4,
+      "note": "Okabe-Ito blue/orange: safe"
+    },
+    {
+      "measure": "color",
+      "page": 3,
+      "key": "CO-1",
+      "level": 2,
+      "note": "red/green series: deuteranopia"
+    },
+    {
+      "measure": "color",
+      "page": 4,
+      "key": "CO-1",
+      "level": 1,
+      "note": "brown/green: confusable even with moderate deuteranomaly"
+    },
+    {
+      "measure": "color",
+      "page": 5,
+      "key": "CO-1",
+      "level": 3,
+      "note": "blue/green: tritanopia only"
+    },
+    {
+      "measure": "color",
+      "page": 6,
+      "key": "CO-2",
+      "level": 3,
+      "note": "#c00000 in black: lightness ratio about 3.2"
+    },
+    {
+      "measure": "color",
+      "page": 7,
+      "key": "CO-2",
+      "level": 1,
+      "note": "#3c693c in #634c30: similar lightness; alike with deuteranopia"
+    },
+    {
+      "measure": "color",
+      "page": 8,
+      "key": "CO-2",
+      "level": 2,
+      "note": "#2e8b57 in #7a5a5a: lightness ratio under 3:1, distinct in simulations"
+    },
+    {
+      "measure": "color",
+      "page": 9,
+      "key": "CO-2",
+      "level": 4,
+      "note": "bold as well as color"
+    },
+    {
+      "measure": "color",
+      "page": 10,
+      "key": "CO-2",
+      "level": 2,
+      "note": "blue words in dark grey: lightness ratio under 3:1"
+    },
+    {
+      "measure": "color",
+      "page": 11,
+      "key": "CO-2",
+      "level": 4,
+      "note": "link is underlined"
+    }
+  ]
+}

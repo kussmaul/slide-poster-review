@@ -1,0 +1,63 @@
+{
+  "deck": "flaws-structure.pptx",
+  "kind": "slides",
+  "hidden": [
+    11
+  ],
+  "expect": [
+    {
+      "measure": "layout",
+      "page": 1,
+      "key": "LY-1",
+      "level": 4,
+      "note": ""
+    },
+    {
+      "measure": "layout",
+      "page": 2,
+      "key": "LY-1",
+      "level": 4,
+      "note": ""
+    },
+    {
+      "measure": "layout",
+      "page": 2,
+      "key": "LY-2",
+      "level": 4,
+      "note": "44 pt title over 28 pt body"
+    },
+    {
+      "measure": "layout",
+      "page": 7,
+      "key": "LY-1",
+      "level": 1,
+      "note": "two text boxes overlap"
+    },
+    {
+      "measure": "layout",
+      "page": 8,
+      "key": "LY-1",
+      "level": 1,
+      "note": "text box extends past the slide"
+    },
+    {
+      "measure": "layout",
+      "page": 9,
+      "key": "LY-2",
+      "level": 1,
+      "note": "24 pt title over 40 pt body"
+    },
+    {
+      "measure": "layout",
+      "page": 10,
+      "key": "LY-1",
+      "level": 4,
+      "note": "covered text is not a visible collision"
+    }
+  ],
+  "items": {
+    "AC-1": 2,
+    "AC-2": 3,
+    "AC-3": 2
+  }
+}
