@@ -8,8 +8,9 @@ page, for reading the content) and OUTPUT_DIR/text.json with:
     fonts   per PDF font: base name, cap height (em) from embedded font metrics when available
     pages   per page: spans with text, font, size_pt, bold/italic, color (#rrggbb), alpha,
             bbox and origin (PDF points, origin top-left), direction
-    pptx    (PPTX sources only) per slide: hidden, title, layout, notes, and non-text shapes
-            with alt text / decorative flags. (Font substitution is reported in manifest.json.)
+    pptx    (PPTX sources only) per slide: hidden, title, layout, notes, non-text shapes
+            with alt text / decorative flags, and text_boxes (box, visible fill or outline,
+            autofit) for overflow checks. (Font substitution is reported in manifest.json.)
 
 Not included (needs OCR; see the contrast/OCR step): text inside images, and text the PDF
 draws as outlines (e.g. PowerPoint exports rotated chart axis labels as filled paths).
@@ -252,6 +253,60 @@ def _shape_records(shapes, in_group: bool = False, group: str | None = None) -> 
     return out
 
 
+A_NS = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+P_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+PAINTS = ("solidFill", "gradFill", "pattFill", "blipFill")
+
+
+def _visible_box(sh) -> tuple[bool, bool]:
+    """(filled, outlined): whether a shape's own fill or outline shows, from its spPr, else its
+    theme style reference (autoshapes are filled and outlined by default; text boxes are not)."""
+    el = sh._element
+    sp_pr = el.find(f"{P_NS}spPr")
+    style = el.find(f"{P_NS}style")
+
+    def ref_idx(tag):
+        r = style.find(f"{A_NS}{tag}") if style is not None else None
+        return int(r.get("idx", "0")) if r is not None else 0
+
+    filled = outlined = False
+    if sp_pr is not None:
+        if sp_pr.find(f"{A_NS}noFill") is not None:
+            filled = False
+        elif any(sp_pr.find(f"{A_NS}{t}") is not None for t in PAINTS):
+            filled = True
+        else:
+            filled = ref_idx("fillRef") > 0
+        ln = sp_pr.find(f"{A_NS}ln")
+        if ln is not None and ln.find(f"{A_NS}noFill") is not None:
+            outlined = False
+        elif ln is not None and any(ln.find(f"{A_NS}{t}") is not None for t in PAINTS):
+            outlined = True
+        else:
+            outlined = ref_idx("lnRef") > 0
+    return filled, outlined
+
+
+def _text_box_records(shapes) -> list[dict]:
+    """Top-level shapes with text: box, visible fill/outline, autofit. For overflow checks (LY-1)
+    and text placed off the slide. Group members are skipped (child coordinates)."""
+    out = []
+    for sh in shapes:
+        if not (sh.has_text_frame and sh.text_frame.text.strip()) or sh.width is None or sh.left is None:
+            continue
+        body = sh._element.find(f".//{A_NS}bodyPr")
+        autofit = None
+        if body is not None:
+            autofit = ("shape" if body.find(f"{A_NS}spAutoFit") is not None else
+                       "shrink" if body.find(f"{A_NS}normAutofit") is not None else None)
+        filled, outlined = _visible_box(sh)
+        out.append({"name": sh.name, "text": sh.text_frame.text[:300],
+                    "bbox": [round(v / EMU_PER_PT, 2) for v in
+                             (sh.left, sh.top, sh.left + sh.width, sh.top + sh.height)],
+                    "filled": filled, "outlined": outlined, "autofit": autofit})
+    return out
+
+
 def pptx_structure(src: Path) -> dict | None:
     if src.suffix.lower() not in {".pptx", ".pptm"} or not src.exists():
         return None
@@ -275,6 +330,7 @@ def pptx_structure(src: Path) -> dict | None:
             "layout": s.slide_layout.name,
             "title_order": title_order,  # 0 = read first; None = no title placeholder
             "shapes": _shape_records(s.shapes),
+            "text_boxes": _text_box_records(s.shapes),
             "has_notes": s.has_notes_slide and bool(s.notes_slide.notes_text_frame.text.strip()),
         })
     return {"slides": slides}

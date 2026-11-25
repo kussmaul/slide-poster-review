@@ -85,7 +85,8 @@ any context rubric. For each one:
 their simulated views in `OUTPUT_DIR/color/` (e.g. `p003-deutan.png`, how the page looks with
 red-green color blindness). Also look at slides with charts, legends, or colored tables or
 highlights. Ask: is anything lost if color can't be seen? A legend whose entries are also
-labeled, or a highlight that is also bold, loses nothing. CO-1 flags colors that look alike;
+labeled, or a highlight that is also bold, loses nothing. A color key alone is at most Level 3,
+even in colorblind-safe colors (WCAG 1.4.1 counts it as relying on color). CO-1 flags colors that look alike;
 only judgment can say whether they carry meaning. Photos are not checked.
 
 **Language (for RD-4).** Read `outline.md` with the audience in mind, using the `hints` in

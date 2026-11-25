@@ -208,9 +208,9 @@ rating records its confidence.
 - weight: 2
 - source: WCAG 2.x 1.4.1 Use of Color
 - more: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
-- Level 4: Every chart, legend, diagram, and highlight that uses color also uses labels, patterns, shapes, or position; nothing is lost in grayscale or simulation.
-- Level 3: One or two places rely on color, but the meaning is also stated in nearby text.
-- Level 2: Some charts or legends can only be read by color, e.g. series told apart only by a color key.
+- Level 4: Every chart, legend, diagram, and highlight that uses color also identifies things another way: direct labels, patterns, shapes, or text naming each one. A color key alone doesn't count, even in colors that stay distinct with color blindness.
+- Level 3: Some places are identified only by color (e.g. series told apart by a color key), but the colors stay distinct with color blindness and in grayscale, or the meaning is also stated in nearby text.
+- Level 2: Some charts or legends can only be read by color, in colors that look alike with color blindness or in grayscale (e.g. a red/green color key), and the meaning isn't stated elsewhere.
 - Level 1: Key content depends on color alone, e.g. "the red items are…", or results shown only as colored cells.
 
 ### RD-4 Language suits the audience

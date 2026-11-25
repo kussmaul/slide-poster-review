@@ -12,7 +12,9 @@ LY-1  Text collides: text from different text blocks overlapping (e.g. a body li
       above the baseline, descenders below), so lines that merely sit close don't count.
         Level 4  none                  Level 3  on one slide, or up to 5% of slides
         Level 2  up to 10% of slides   Level 1  more than 10%
-      Text entirely off the page isn't in the PDF and can't be found here.
+      With a .pptx, also text running out of a shape with a visible fill or outline (e.g. a
+      colored box). Text boxes without fill or outline are skipped: their overflow shows only as
+      a collision or cut-off text. Text entirely off the slide is noted (LY-OFFPAGE), not scored.
 LY-2  Titles stand out: on each slide, the title's cap height vs. the largest body text
       (bullets, paragraphs; not labels or chart text).
         Level 4  title 1.2x or more    Level 3  1.1x or more
@@ -46,6 +48,7 @@ DESCENT = 0.21                     # descender depth below the baseline, in em
 MIN_OVERLAP_PT = 2.0
 MIN_OVERLAP_SHARE = 0.25           # of the smaller box's height
 EDGE_TOL_PT = 1.0
+OVERFLOW_MIN_PT, OVERFLOW_SHARE = 2.0, 0.15   # text this far past its shape's edge overflows
 HIERARCHY_BOUNDS = (0.99, 1.1, 1.2)   # L2, L3, L4 lower bounds of title / body cap ratio
 FONT_MIN_SHARE = 0.02
 POS_TOL, SIZE_TOL = 0.02, 0.10
@@ -167,6 +170,46 @@ def collisions(page: dict, fonts: dict, img=None, scale=(1.0, 1.0), order: dict 
     return out, covered
 
 
+def _norm(t: str) -> str:
+    return re.sub(r"\s+", " ", t).strip().lower()
+
+
+def overflows(page: dict, fonts: dict, boxes: list[dict]) -> list[dict]:
+    """Text that spills out of a shape with a visible fill or outline (.pptx only). Invisible text
+    boxes are skipped: their overflow only shows as a collision or cut-off text. So are shapes
+    that resize to fit their text, since the stored size may be out of date."""
+    texts = [_norm(bx["text"]) for bx in boxes]
+    worst: dict[int, tuple[float, str]] = {}
+    for s in page["spans"]:
+        t = _norm(s["text"])
+        if len(t) < 4 or s.get("dir", [1, 0]) != [1.0, 0.0]:
+            continue
+        ib = ink_box(s, (fonts.get(s["font"]) or {}).get("cap_height_em") or CAP_DEFAULT)
+        # A span belongs to the nearest shape whose text contains it (the same words may be in
+        # several shapes); how far its ink reaches past that shape's edges.
+        cands = [(max(bx["bbox"][1] - ib[1], ib[3] - bx["bbox"][3], bx["bbox"][0] - ib[0], ib[2] - bx["bbox"][2]), k)
+                 for k, bx in enumerate(boxes) if t in texts[k]
+                 # overflow stays in its shape's column: at least half the span is within its width
+                 and min(ib[2], bx["bbox"][2]) - max(ib[0], bx["bbox"][0]) >= 0.5 * (ib[2] - ib[0])]
+        if not cands:
+            continue
+        past, k = min(cands)
+        bx = boxes[k]
+        if not (bx["filled"] or bx["outlined"]) or bx["autofit"] == "shape":
+            continue
+        if past > max(OVERFLOW_MIN_PT, OVERFLOW_SHARE * s["size_pt"]) and past > worst.get(k, (0, ""))[0]:
+            worst[k] = (past, s["text"].strip()[:50])
+    return [{"type": "overflow", "text": w[1], "shape": boxes[k]["name"], "by_pt": round(w[0], 1)}
+            for k, w in sorted(worst.items())]
+
+
+def off_page(page: dict, boxes: list[dict]) -> list[str]:
+    """Text shapes placed entirely off the slide: not shown, and not in the PDF."""
+    W, H = page["width_pt"], page["height_pt"]
+    return [bx["text"].strip()[:50] for bx in boxes
+            if bx["bbox"][2] <= 0 or bx["bbox"][0] >= W or bx["bbox"][3] <= 0 or bx["bbox"][1] >= H]
+
+
 def _cap(s: dict, fonts: dict) -> float:
     return s["size_pt"] * ((fonts.get(s["font"]) or {}).get("cap_height_em") or CAP_DEFAULT)
 
@@ -216,7 +259,9 @@ def measure(out_dir: Path, kind: str | None = None) -> Path:
             img = ct.load_page(out_dir / mp["image"])
         found, covered = collisions(p, fonts, img, (mp["px_per_pt_x"], mp["px_per_pt_y"]) if mp else (1, 1),
                                     paint_order(doc[i - 1]))
-        u["LY-1"] = {"collisions": found, "covered": covered}
+        tboxes = slides_info.get(i, {}).get("text_boxes", [])
+        found += overflows(p, fonts, tboxes)
+        u["LY-1"] = {"collisions": found, "covered": covered, "off_page": off_page(p, tboxes)}
         u["LY-1"]["level"] = 4 if not u["LY-1"]["collisions"] else 1
         body = [s for s in p["spans"] if s.get("role") == "body" and _has_letters(s["text"])]
         title_spans = [s for s in body if s.get("kind") == "title"]
@@ -265,12 +310,20 @@ def measure(out_dir: Path, kind: str | None = None) -> Path:
         n = len(low)
         ex = max(low[0]["LY-1"]["collisions"], key=lambda c: len("".join(c["text"])))
         what = (f"\"{ex['text'][0]}\" overlaps \"{ex['text'][1]}\"" if ex["type"] == "overlap"
+                else f"\"{ex['text']}\" runs outside its box" if ex["type"] == "overflow"
                 else f"\"{ex['text']}\" is cut off at the edge")
         add_finding("LY-1", level, low,
-                    f"{n} {unit_word[n != 1]} {'has' if n == 1 else 'have'} text that overlaps other text "
-                    "or runs off the page.",
+                    f"{n} {unit_word[n != 1]} {'has' if n == 1 else 'have'} text that overlaps other text, "
+                    "runs outside its box, or runs off the page.",
                     f"For example: {_where([u['page'] for u in low], kind)}. On {unit_word[0]} "
                     f"{low[0]['page']}, {what}.", "high")
+    parked = [u for u in scored if u["LY-1"]["off_page"]]
+    if parked:
+        notices.append({"code": "LY-OFFPAGE", "level": "info",
+                        "message": f"Text placed entirely off the {unit_word[0]} (not shown or scored) on "
+                                   f"{_where([u['page'] for u in parked], kind)}, e.g. "
+                                   f"\"{parked[0]['LY-1']['off_page'][0]}\".",
+                        "advice": "Check that nothing there was meant to be shown."})
 
     # LY-2
     with_ratio = [u for u in scored if "LY-2" in u]

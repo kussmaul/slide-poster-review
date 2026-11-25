@@ -702,3 +702,21 @@ def test_chart_hints_for_data_graphics(generated):
             for c in poor] == [(4, True, 55.0, False, False)]  # 3-D chart read from XML
     assert [(c["is_3d"], c["value_axis_min"], c["value_axis_title"], c["data_labels"])
             for c in clear] == [(False, 0.0, True, True)]
+
+
+def test_overflow_matches_nearest_shape_in_column():
+    box = lambda name, bbox, text, filled=True: {"name": name, "bbox": bbox, "text": text,  # noqa: E731
+                                                 "filled": filled, "outlined": False, "autofit": None}
+    span = lambda text, x0, base: {"text": text, "bbox": [x0, base - 20, x0 + 60, base + 5],  # noqa: E731
+                                   "origin": [x0, base], "size_pt": 20, "font": "Arial"}
+    page = {"width_pt": 720, "height_pt": 540,
+            "spans": [span("share ideas", 30, 80), span("share ideas", 30, 140),   # 2nd spills below box A
+                      span("share ideas", 400, 80),                                 # inside box B
+                      span("answers here", 250, 300)]}                              # other column
+    boxes = [box("A", [20, 50, 200, 100], "share ideas share ideas"),
+             box("B", [390, 50, 600, 100], "share ideas"),
+             box("C", [400, 280, 600, 330], "answers here"),
+             box("D", [20, 200, 200, 230], "share ideas", filled=False)]
+    out = layout.overflows(page, {}, boxes)
+    assert [(o["shape"], o["text"]) for o in out] == [("A", "share ideas")]
+    assert layout.off_page(page, [box("E", [730, 10, 900, 40], "parked note")]) == ["parked note"]

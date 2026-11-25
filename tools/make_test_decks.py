@@ -564,13 +564,34 @@ def make_4x3(out: Path, tmp: Path) -> dict:
     footer(s, 6)
     e(6, "layout", "LY-1", 1, "12 bullets overflow a 4 in box and run over the footer")
 
+    long = ["A colored box with more text than fits in it, so the last lines spill out below "
+            "the bottom of the box onto the white slide"]
+    s = blank(prs)
+    head(s, "Text spills out of a colored box")
+    text(s, 0.6, 1.8, 8.8, 1.2, long, size=28, fill="#dde8f5")
+    footer(s, 7)
+    e(7, "layout", "LY-1", 1, "filled box 1.2 in high holding about 2 in of text")
+
+    s = blank(prs)
+    head(s, "Control: boxes that fit")
+    text(s, 0.6, 1.8, 8.8, 1.4, ["A colored box whose text fits inside it"], size=28, fill="#dde8f5")
+    text(s, 0.6, 3.8, 8.8, 0.6, long, size=28)  # no fill or outline: overflow isn't visible
+    footer(s, 8)
+    e(8, "layout", "LY-1", 4, "filled box fits; an unfilled text box overflows invisibly")
+
+    s = blank(prs)
+    head(s, "Control: text parked off the slide")
+    text(s, 0.6, 2.0, 8.8, 1.0, ["Body text on the slide"], size=32)
+    text(s, 10.5, 2.0, 4, 1.0, ["Speaker reminder parked off the slide"], size=24, fill="#ffff99")
+    footer(s, 9)
+    e(9, "layout", "LY-1", 4, "off-slide text is noted (LY-OFFPAGE), not scored")
+
     s = blank(prs, hidden=True)
     head(s, "Hidden slide with tiny text")
     text(s, 0.6, 2.0, 8.8, 3.0, ["This slide is hidden and must not be scored"], size=8, color="#bbbbbb")
 
     save(prs, out / "flaws-4x3.pptx")
-    return {"deck": "flaws-4x3.pptx", "kind": "slides", "hidden": [7], "expect": exp,
-            "known_gaps": ["text overflowing its own box without touching other text (task 26)"]}
+    return {"deck": "flaws-4x3.pptx", "kind": "slides", "hidden": [10], "expect": exp}
 
 
 def make_poster_half(out: Path, tmp: Path) -> dict:
