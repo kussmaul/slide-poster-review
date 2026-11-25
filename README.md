@@ -5,9 +5,9 @@ produces a scorecard. It measures text size, contrast, color use, and readabilit
 items such as format and content. It reports issues but never rewrites your content.
 
 **Status:** early version. It rates text size, text contrast (including text inside images), use
-of color, and readability (measured), plus whether key ideas are identifiable, whether meaning
-depends on color alone, and whether the language suits the audience (judged by the agent), and
-produces a scorecard. Next steps are in [QUEUE.md](QUEUE.md).
+of color, readability, layout, and accessibility metadata (measured), plus key ideas, meaning that
+depends on color, language for the audience, cognitive load, and data graphics (judged by the
+agent), and produces a scorecard. Next steps are in [QUEUE.md](QUEUE.md).
 
 ## What you can give it
 
@@ -50,6 +50,10 @@ MIL-STD-1472, Legge). See
 The point sizes assume a typical sans-serif font on a 7.5-inch-high slide. Fonts differ: Calibri's
 capitals are about 10% shorter than Arial's at the same point size. The review uses each font's real
 cap height when it can read it from the file.
+
+**Colored text** (red, blue, green; not black, white, or grey) is rated as if it were about 30%
+smaller, because colored characters need to be larger to be read as easily (MIL-STD-1472F: 21′
+instead of 16′). Findings say when the smallest text is colored.
 
 The same thresholds apply to every audience. This follows universal design: text that works for
 viewers with weaker eyesight works for everyone.
@@ -174,6 +178,36 @@ prose, and slide fragments make text look easier than it is. Text found by OCR i
 readability, because misread words would count as rare. Sources are in
 [references/readability.md](skill/slide-poster-review/references/readability.md).
 
+## How layout is rated
+
+- **Text doesn't collide.** Text that overlaps other text (e.g. a line running into the footer) or
+  is cut off at the edge of the slide. Text deliberately hidden under an opaque shape isn't a visible
+  collision. It is listed separately, because a screen reader still reads it.
+- **Titles stand out.** Each slide's title compared with its largest body text: Level 4 is 1.2
+  times larger or more, Level 3 is 1.1 times, Level 2 about the same, Level 1 smaller.
+- **Few fonts.** Font families in body text (each with at least 2% of the characters): one or two
+  is Level 4, three is Level 3, four is Level 2, more is Level 1.
+- **Titles in a consistent place.** Titles whose position or size differs from other slides with
+  the same layout, e.g. a title shrunk to fit.
+
+Two items are judged by the agent, using counts from the layout check as pointers:
+**cognitive load** (one point per slide, text the audience can glance at rather than read) and
+**data graphics** (labeled axes, direct labels, no 3-D or other distortion).
+
+## How accessibility metadata is rated
+
+These matter when the file itself is shared, e.g. posted for students who use a screen reader.
+They follow WCAG and PowerPoint's Accessibility Checker, and need the .pptx:
+
+- **Alt text** on pictures, charts, and diagrams, unless they are marked decorative. Alt text that
+  is just a file name counts as missing; alt text Office generated automatically counts as present
+  but unchecked.
+- **Slide titles** in the title placeholder, because screen-reader users navigate by them. A title
+  typed into a text box doesn't count.
+- **Reading order:** the title is read first.
+
+Sources are in [references/standards.md](skill/slide-poster-review/references/standards.md).
+
 ## The scorecard
 
 - The scorecard has a summary row for each **section** (e.g. "Text size: 1.8 of 4"), the weighted
@@ -224,7 +258,7 @@ Decks with known flaws come from a generator; each has an `.expected.json` with 
 flaw should get, which the tests check:
 
 ```
-.venv/Scripts/python tools/make_test_decks.py     # -> test-inputs/generated/flaws-{slides,poster,color,text}.pptx
+.venv/Scripts/python tools/make_test_decks.py     # -> test-inputs/generated/flaws-{slides,poster,color,text,structure}.pptx
 ```
 
 `review_test_inputs.py` includes `test-inputs/generated/` if it exists. Open a scorecard in VS Code's
@@ -239,6 +273,8 @@ python skill/slide-poster-review/scripts/font_size.py output/deck-pptx
 python skill/slide-poster-review/scripts/contrast.py output/deck-pptx
 python skill/slide-poster-review/scripts/color.py output/deck-pptx
 python skill/slide-poster-review/scripts/readability.py output/deck-pptx --audience general
+python skill/slide-poster-review/scripts/layout.py output/deck-pptx
+python skill/slide-poster-review/scripts/accessibility.py output/deck-pptx
 # the agent writes output/deck-pptx/judgments.json (see SKILL.md), then:
 python skill/slide-poster-review/scripts/scorecard.py output/deck-pptx
 ```

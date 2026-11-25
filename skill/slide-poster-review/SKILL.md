@@ -1,9 +1,9 @@
 ---
 name: slide-poster-review
-description: Reviews slide decks and posters (PPTX, Google Slides exports, PDF) against accessibility and presentation rubrics and produces a scorecard with a ranked issue list. Measures text size by viewing distance and text contrast (WCAG), including text inside images (OCR), and colors that look alike with color blindness or carry meaning alone; rates readability for the audience (CEFR vocabulary level, sentence length, acronyms) and whether key ideas are identifiable. Use when the user asks to review, check, critique, or score slides, a presentation, a deck, or a poster.
+description: Reviews slide decks and posters (PPTX, Google Slides exports, PDF) against accessibility and presentation rubrics and produces a scorecard with a ranked issue list. Measures text size by viewing distance and text contrast (WCAG), including text inside images (OCR), and colors that look alike with color blindness or carry meaning alone; rates readability for the audience (CEFR vocabulary level, sentence length, acronyms), layout (colliding text, title hierarchy, fonts, consistency), accessibility metadata (alt text, slide titles, reading order), cognitive load, data graphics, and whether key ideas are identifiable. Use when the user asks to review, check, critique, or score slides, a presentation, a deck, or a poster.
 compatibility: Requires Python 3.10+ with pymupdf, python-pptx, fonttools, numpy, and daltonlens (requirements.txt); readability uses the bundled CEFR word lists, no extra packages. Rendering .pptx needs PowerPoint (Windows) or LibreOffice; without either, accepts PDF exports only. OCR uses Windows' built-in engine; elsewhere it is skipped with a notice.
 metadata:
-  status: "early version: text size, contrast, color, readability, key ideas"
+  status: "early version: text size, contrast, color, readability, layout, accessibility, content"
 ---
 
 # Slide & poster review
@@ -42,6 +42,8 @@ python scripts/font_size.py OUTPUT_DIR [--print-size 48x36in] [--preset NAME]
 python scripts/contrast.py OUTPUT_DIR  [--print-size 48x36in] [--preset NAME]   # same options
 python scripts/color.py OUTPUT_DIR                  # color blindness, color-only emphasis
 python scripts/readability.py OUTPUT_DIR [--audience general|l2|experts] [--lang en]
+python scripts/layout.py OUTPUT_DIR                 # colliding text, title hierarchy, fonts, consistency
+python scripts/accessibility.py OUTPUT_DIR          # alt text, slide titles, reading order (.pptx only)
 ```
 
 - If `render.py` fails (exit code 2 or 3), tell the user its message. It explains what to do,
@@ -49,7 +51,11 @@ python scripts/readability.py OUTPUT_DIR [--audience general|l2|experts] [--lang
 - Pass every notice from `render.py` on to the user. These say what this file format can't show,
   e.g. a Google Slides PDF that includes skipped slides. The scorecard repeats them.
 - Viewing presets are in [rubrics/presets.md](rubrics/presets.md). The evidence behind them is in
-  [references/legibility-thresholds.md](references/legibility-thresholds.md).
+  [references/legibility-thresholds.md](references/legibility-thresholds.md). Standards behind the
+  other items (WCAG, ADA, Office's accessibility checker, design and learning research) are in
+  [references/standards.md](references/standards.md).
+- `accessibility.py` needs the .pptx. For a PDF it reports that alt text, slide titles, and
+  reading order weren't checked; pass that on if the file will be shared with students.
 
 ## 3. Judge
 
@@ -90,6 +96,19 @@ among them). Look for idioms, culture-specific references, stacked nouns ("stude
 outcome assessment data"), and terms used before they are explained. Technical terms are fine
 for experts, or when defined. For second-language readers, idioms and phrasal verbs matter most.
 `signals` (Flesch, Flesch-Kincaid) are background only: slide fragments make them read as easy.
+
+**Cognitive load (for CL-1).** Use `hints` in `layout.json`: `slides_over_40_words`,
+`slides_over_6_lines`, `median_body_words`, and per-slide `units[].hints` (words, lines, bullets,
+images). These point to slides to look at; they aren't limits. Look at their page images. Ask:
+does each slide make one point? Would the audience read instead of listen? Is there decoration
+that competes with the content? A dense slide meant as a handout or reference is less of a problem
+than a dense slide shown while speaking.
+
+**Data graphics (for DG-1).** Look at slides with charts or tables: `layout.json` → `hints.charts`
+(chart type, 3-D, title, legend, axis titles, data labels; .pptx only) and pictures of charts in
+the page images. Ask: is the message clear, are axes and units labeled, could labels replace the
+legend, does anything distort the data (3-D, truncated axes)? If the deck has no data graphics,
+leave DG-1 out of `judgments.json`.
 
 Describe what is wrong, not how to fix it: "The conclusion slide lists topics rather than
 findings", not "Change the conclusion to say…".

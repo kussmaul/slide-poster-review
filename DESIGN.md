@@ -67,7 +67,20 @@ Separate from the POGIL claude-skills project (review / simulate / split).
   RD-4 (judged): idioms, phrasal verbs, jargon, noun stacks; agent uses `hints` in readability.json.
   Flesch / Flesch-Kincaid (+ Flesch adaptations for de es fr it nl ru) reported, not scored.
   No textstat dependency (it pulls in nltk and downloads CMUdict at first use); see references/readability.md.
-- **Extras:** cognitive load, data graphics, accessibility metadata, consistency.
+- **Layout** (layout.py): LY-1 colliding text (ink boxes cap-to-descender, compared per line since
+  PyMuPDF merges overlapping boxes into one block; spans split at 3+ spaces; text under an opaque
+  shape drawn later, by PDF paint order or pixels, is "covered", not a collision); levels by share
+  of slides: none / one or up to 5% / up to 10% / more. LY-2 title vs largest body cap height
+  1.2 / 1.1 / about 1.0, 90% rule. LY-3 font families with at least 2% of body characters
+  1-2 / 3 / 4 / 5+. LY-4 title anchor (left/center/right, top/middle/bottom: fewest outliers) and
+  size vs the mode per PPTX layout; tolerance 2% / 10%. Hints for judged CL-1 (words, lines,
+  bullets per slide) and DG-1 (PPTX chart facts).
+- **Accessibility** (accessibility.py, PPTX only): AC-1 alt text (file/default names = missing,
+  Office auto text = unchecked; group alt covers children; decorative excluded) 100 / 90 / 50%;
+  AC-2 title placeholder present (repeats on non-consecutive slides cap at L3); AC-3 title first
+  in shape order. Follows Microsoft's Accessibility Checker. References: references/standards.md.
+- **Colored text** (font_size.py, task 22): CIELAB chroma over 20, angle divided by 21/16
+  (MIL-STD-1472F).
 
 ## Judgments (initial)
 - Format: required/forbidden headings per context rubric.
@@ -93,7 +106,8 @@ skill/slide-poster-review/     ← the shipped skill (folder name = `name` in SK
   rubrics/          default.md, presets.md
   references/       WCAG, 8H, ADA, CEFR notes + links
   assets/cefr/      CEFR-J and Octanove word lists (with attribution)
-  scripts/          render, extract_text, ocr, font_size, contrast, color, readability, scorecard
+  scripts/          render, extract_text, ocr, font_size, contrast, color, readability, layout,
+                    accessibility, scorecard
 tests/  test-inputs/ (local, gitignored)  DESIGN.md  QUEUE.md  requirements-dev.txt
 ```
 

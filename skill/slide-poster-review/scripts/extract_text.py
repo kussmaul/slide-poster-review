@@ -162,7 +162,51 @@ def _alt_text(shape) -> tuple[str | None, bool]:
     return descr, decorative
 
 
-def _shape_records(shapes, in_group: bool = False) -> list[dict]:
+IMAGE_TYPES = {"PICTURE", "LINKED_PICTURE", "CHART", "MEDIA", "EMBEDDED_OLE_OBJECT",
+               "LINKED_OLE_OBJECT", "DIAGRAM", "SMART_ART"}
+
+
+def _chart_info(sh) -> dict | None:
+    """Chart facts the agent uses for data-graphics judgments (DG-1)."""
+    try:
+        ch = sh.chart
+    except Exception:
+        return None
+    info = {"chart_type": str(ch.chart_type).split(".")[-1].split(" ")[0],
+            "has_title": bool(ch.has_title), "has_legend": bool(ch.has_legend),
+            "series": len(list(ch.series))}
+    info["is_3d"] = "THREE_D" in info["chart_type"] or "3D" in info["chart_type"]
+    for axis in ("category_axis", "value_axis"):
+        try:
+            info[f"{axis}_title"] = bool(getattr(ch, axis).has_title)
+        except Exception:  # pie and doughnut charts have no axes
+            pass
+    try:
+        info["data_labels"] = bool(ch.plots[0].has_data_labels)
+    except Exception:
+        pass
+    return info
+
+
+def _media_kind(sh, st_name: str | None) -> str | None:
+    """'image' for anything that needs alt text: pictures, charts, media, OLE objects, SmartArt,
+    and placeholders filled with one of these. None otherwise."""
+    if st_name in IMAGE_TYPES:
+        return "image"
+    if st_name == "PLACEHOLDER":
+        if hasattr(sh, "image") or getattr(sh, "has_chart", False):
+            try:
+                if getattr(sh, "has_chart", False) or sh.image is not None:
+                    return "image"
+            except Exception:
+                return None
+        return None
+    if st_name is None and sh._element.tag.endswith("graphicFrame"):
+        return "image"  # SmartArt and other graphic frames python-pptx doesn't name
+    return None
+
+
+def _shape_records(shapes, in_group: bool = False, group: str | None = None) -> list[dict]:
     from pptx.enum.shapes import MSO_SHAPE_TYPE
     out = []
     for sh in shapes:
@@ -177,16 +221,22 @@ def _shape_records(shapes, in_group: bool = False) -> list[dict]:
             if not in_group and sh.width is not None:
                 bbox = [round(v / EMU_PER_PT, 2) for v in
                         (sh.left, sh.top, sh.left + sh.width, sh.top + sh.height)]
-            out.append({
+            st_name = str(st).split(".")[-1].split(" ")[0] if st else None
+            rec = {
                 "name": sh.name,
-                "type": str(st).split(".")[-1].split(" ")[0] if st else None,
+                "type": st_name,
+                "media": _media_kind(sh, st_name),  # "image" if it needs alt text
                 "alt_text": alt,
                 "decorative": deco,
                 "bbox": bbox,  # PDF points; None inside groups (child coordinates)
                 "in_group": in_group,
-            })
+                "group": group,  # name of the enclosing top-level group
+            }
+            if getattr(sh, "has_chart", False):
+                rec["chart"] = _chart_info(sh)
+            out.append(rec)
         if is_group:
-            out.extend(_shape_records(sh.shapes, in_group=True))
+            out.extend(_shape_records(sh.shapes, in_group=True, group=group or sh.name))
     return out
 
 
@@ -198,12 +248,20 @@ def pptx_structure(src: Path) -> dict | None:
 
     slides = []
     for i, s in enumerate(prs.slides, 1):
-        title = s.shapes.title.text_frame.text if s.shapes.title is not None else None
+        title_shape = s.shapes.title
+        title = title_shape.text_frame.text if title_shape is not None else None
+        # reading order = shape order; position of the title among shapes a screen reader announces
+        announced = [sh for sh in s.shapes
+                     if (sh.has_text_frame and sh.text_frame.text.strip()) or sh.shape_type is not None
+                     and str(sh.shape_type).split(".")[-1].split(" ")[0] in IMAGE_TYPES | {"GROUP", "TABLE"}]
+        title_order = next((i for i, sh in enumerate(announced)
+                            if title_shape is not None and sh.shape_id == title_shape.shape_id), None)
         slides.append({
             "index": i,
             "hidden": s._element.get("show") in ("0", "false"),
             "title": title,
             "layout": s.slide_layout.name,
+            "title_order": title_order,  # 0 = read first; None = no title placeholder
             "shapes": _shape_records(s.shapes),
             "has_notes": s.has_notes_slide and bool(s.notes_slide.notes_text_frame.text.strip()),
         })

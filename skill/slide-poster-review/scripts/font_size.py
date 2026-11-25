@@ -17,6 +17,9 @@ Angle: 2 * atan(cap / (2 * distance)), where cap = size_pt * cap_height_em.
   posters: cap is the printed size in metres (page size scaled to --print-size), distance in
            metres (default preset: 1.5 m).
 cap_height_em comes from the font metrics in text.json. Without metrics it is 0.7 (DESIGN.md).
+Colored text (CIELAB chroma over 20, e.g. red or blue, not black or grey) needs to be larger:
+MIL-STD-1472F raises the minimum from 16' to 21' for colored characters. So its angle is divided
+by 21/16 before the level is set ("effective" angle); a 20' red word rates like 15' black text.
 
 Text roles:
   body        everything else (titles, bullets, labels, chart text)
@@ -43,6 +46,8 @@ TARGET_LEVEL = 3         # findings list units below this level
 INVISIBLE_ARCMIN = 1.0   # below this, text can't be seen at all: artifact, not scored (FS-TINY)
 EDGE_TOP, EDGE_BOTTOM = 0.10, 0.88  # page-height fractions for header / footer bands
 REPEAT_SHARE = 0.25      # a footer text repeats on at least this share of slides (min 3)
+COLOR_FACTOR = 21 / 16   # MIL-STD-1472F: colored characters 21' minimum vs 16'
+COLOR_CHROMA = 20        # CIELAB chroma above this counts as colored text
 CITATION = re.compile(r"https?://|www\.|doi:|\b(source|image|photo|credit)s?:|\bet al\.|\((19|20)\d\d[a-z]?\)",
                       re.IGNORECASE)
 
@@ -80,6 +85,17 @@ def parse_print_size(text: str) -> tuple[float, float]:
 def cap_angle_arcmin(cap: float, distance: float) -> float:
     """Visual angle in arcminutes of an object of height `cap` at `distance` (same units)."""
     return math.degrees(2 * math.atan(cap / (2 * distance))) * 60
+
+
+def chroma(hex_color: str) -> float:
+    """CIELAB chroma (D65) of '#rrggbb': about 0 for black, white, and greys."""
+    c = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    c = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in c]
+    x = (0.4124 * c[0] + 0.3576 * c[1] + 0.1805 * c[2]) / 0.95047
+    y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    z = (0.0193 * c[0] + 0.1192 * c[1] + 0.9505 * c[2]) / 1.08883
+    f = [t ** (1 / 3) if t > 216 / 24389 else (24389 / 27 * t + 16) / 116 for t in (x, y, z)]
+    return math.hypot(500 * (f[0] - f[1]), 200 * (f[1] - f[2]))
 
 
 def level_for(angle: float, bounds: list[float]) -> int:
@@ -320,9 +336,12 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
             if substituted and re.fullmatch(r"\d+(,\w+)?", font):
                 # PowerPoint names substitute fonts "1", "2,Bold", ...
                 font = f"substitute for {' / '.join(substituted)}"
+            colored = chroma(s["color"]) > COLOR_CHROMA
+            effective = angle / COLOR_FACTOR if colored else angle
             rec = {"text": s["text"].strip()[:80], "size_pt": s["size_pt"], "font": font,
                    "cap_em": round(cap_em, 3), "arcmin": round(angle, 2),
-                   "level": level_for(angle, bounds), "role": s["role"], "reason": s["role_reason"],
+                   "effective_arcmin": round(effective, 2), "colored": colored, "color": s["color"],
+                   "level": level_for(effective, bounds), "role": s["role"], "reason": s["role_reason"],
                    "kind": s["kind"]}
             key = p["index"] if kind == "slides" else (p["index"], s["block"])
             groups[key].append(rec)
@@ -334,6 +353,7 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
                 continue
             rec = {"text": line["text"][:80], "size_pt": round(cap_pt / DEFAULT_CAP_EM, 1),
                    "font": "text in image (OCR)", "cap_em": None, "arcmin": round(angle, 2),
+                   "effective_arcmin": round(angle, 2), "colored": False,
                    "level": level_for(angle, bounds), "role": "body", "reason": None,
                    "kind": "image text", "ocr": True}
             # Posters: one unit per picture (or shape cluster), not per OCR line.
@@ -346,7 +366,7 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
             for role in ("body", "supporting"):
                 rs = [r for r in recs if r["role"] == role]
                 if rs:
-                    worst = min(rs, key=lambda r: r["arcmin"])
+                    worst = min(rs, key=lambda r: r["effective_arcmin"])
                     unit[role] = {"level": worst["level"], "smallest": worst, "spans": len(rs)}
             units.append(unit)
 
@@ -372,7 +392,7 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
                           "level_counts": {f"L{k}": counts.get(k, 0) for k in (1, 2, 3, 4)},
                           "confidence": confidence}
         if low:
-            low.sort(key=lambda u: u[role]["smallest"]["arcmin"])
+            low.sort(key=lambda u: u[role]["smallest"]["effective_arcmin"])
             worst = low[0][role]["smallest"]
             where = [str(u["page"]) if kind == "slides" else f'poster {u["page"]}' for u in low]
             sample = list(dict.fromkeys(where))[:3]
@@ -394,8 +414,14 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
             examples = (("slide " if len(sample) == 1 else "slides ") if kind == "slides" else "") + ", ".join(sample)
             size = (f"about {worst['size_pt']:g} pt, text in an image or shape" if worst.get("ocr")
                     else f"{worst['size_pt']:g} pt {worst['font']}")
+            colored_note = (f", colored {worst['color']}, so rated as {worst['effective_arcmin']:.1f}′"
+                            if worst.get("colored") else "")
             details = (f"Smallest text is in {what}. For example: {examples}. Smallest: "
-                       f"{size} ({worst['arcmin']:.1f}′, \"{worst['text'][:40]}\").")
+                       f"{size} ({worst['arcmin']:.1f}′{colored_note}, \"{worst['text'][:40]}\").")
+            n_colored = sum(1 for u in low if u[role]["smallest"].get("colored"))
+            if n_colored:
+                details += (f" On {n_colored} of these, the smallest text is colored, which needs to be "
+                            "about 30% larger than black or grey text.")
             findings.append({
                 "id": item_id, "level": min(u[role]["level"] for u in low), "count": n_low,
                 "confidence": confidence, "headline": headline, "details": details,

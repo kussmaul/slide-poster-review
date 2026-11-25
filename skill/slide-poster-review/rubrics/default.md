@@ -18,6 +18,8 @@ rating records its confidence.
 | Contrast    | 3      | measured accessibility: weighted higher    |
 | Color       | 2      | measured + judged                          |
 | Readability | 2      | measured + judged                          |
+| Layout      | 2      | measured                                   |
+| Accessibility | 2    | measured; needs the .pptx (alt text, titles, reading order) |
 | Content     | 2      | judged                                     |
 | Format      | 1      | judged; mostly set by context rubrics (planned) |
 
@@ -29,7 +31,7 @@ rating records its confidence.
 - measure: font_size
 - source: ISO 9241-303; ANSI/HFES 100; MIL-STD-1472
 - more: references/legibility-thresholds.md
-- Level 4: On at least 90% of slides, all body text has a cap height of 22′ or more (about 40 pt at 8H). Comfortable for everyone, including the back row.
+- Level 4: On at least 90% of slides, all body text has a cap height of 22′ or more (about 40 pt at 8H). Comfortable for everyone, including the back row. Colored text needs about 30% more (MIL-STD-1472F).
 - Level 3: On at least 90% of slides, all body text is 16′ or more (about 29 pt at 8H). Comfortable reading.
 - Level 2: On at least 90% of slides, all body text is 10′ or more (about 18 pt at 8H). Readable with effort.
 - Level 1: On more than 10% of slides, some body text is under 10′. Hard to read from the back.
@@ -122,6 +124,83 @@ rating records its confidence.
 - Level 2: Three to five acronyms are never spelled out.
 - Level 1: Six or more acronyms are never spelled out.
 
+### LY-1 Text doesn't collide
+- section: Layout
+- weight: 2
+- measure: layout
+- source: Basic layout quality; text that overlaps or is cut off can't be read
+- more: references/standards.md
+- Level 4: No text overlaps other text or runs off the slide.
+- Level 3: One slide, or up to 5% of slides, has colliding or cut-off text.
+- Level 2: Up to 10% of slides.
+- Level 1: More than 10% of slides.
+
+### LY-2 Titles stand out
+- section: Layout
+- weight: 1
+- measure: layout
+- source: Typographic hierarchy (signaling principle, Mayer)
+- more: references/standards.md
+- Level 4: On at least 90% of slides, the title is at least 1.2 times the size of the body text.
+- Level 3: On at least 90% of slides, the title is at least 1.1 times the body text.
+- Level 2: On at least 90% of slides, the title is about the same size as the body text or larger.
+- Level 1: On more than 10% of slides, body text is larger than the title.
+
+### LY-3 Few fonts
+- section: Layout
+- weight: 1
+- measure: layout
+- source: Graphic design guidance (consistency; one or two typefaces)
+- more: references/standards.md
+- Level 4: Body text uses one or two font families.
+- Level 3: Three font families.
+- Level 2: Four font families.
+- Level 1: Five or more font families.
+
+### LY-4 Titles in a consistent place
+- section: Layout
+- weight: 1
+- measure: layout
+- source: Consistency (WCAG 3.2.3 Consistent Navigation, by analogy); design guidance
+- more: references/standards.md
+- Level 4: Titles on slides with the same layout share position and size.
+- Level 3: Up to 10% of titled slides differ in title position or size (e.g. shrunk to fit).
+- Level 2: Up to 25% differ.
+- Level 1: More than 25% differ.
+
+### AC-1 Alt text for graphics
+- section: Accessibility
+- weight: 2
+- measure: accessibility
+- source: WCAG 2.x 1.1.1 Non-text Content; Microsoft Accessibility Checker
+- more: https://www.w3.org/WAI/WCAG22/Understanding/non-text-content.html
+- Level 4: Every picture, chart, and diagram has alt text written by the author, or is marked decorative.
+- Level 3: At least 90% have alt text, or all do but some is auto-generated and unchecked.
+- Level 2: At least half have alt text.
+- Level 1: Fewer than half have alt text.
+
+### AC-2 Slide titles
+- section: Accessibility
+- weight: 1
+- measure: accessibility
+- source: WCAG 2.x 2.4.2 Page Titled, 2.4.6 Headings and Labels; Microsoft Accessibility Checker
+- more: https://www.w3.org/WAI/WCAG22/Understanding/page-titled.html
+- Level 4: Every slide has a title in its title placeholder, and titles are distinct.
+- Level 3: Up to 10% of slides lack a title, or some titles repeat on separate slides.
+- Level 2: Up to 25% of slides lack a title.
+- Level 1: More than 25% of slides lack a title.
+
+### AC-3 Reading order
+- section: Accessibility
+- weight: 1
+- measure: accessibility
+- source: WCAG 2.x 1.3.2 Meaningful Sequence; Microsoft Accessibility Checker
+- more: https://www.w3.org/WAI/WCAG22/Understanding/meaningful-sequence.html
+- Level 4: On every titled slide, a screen reader reads the title first.
+- Level 3: Up to 10% of titled slides read something else first.
+- Level 2: Up to 25%.
+- Level 1: More than 25%.
+
 ## Judged items
 
 ### CO-3 Meaning doesn't depend on color alone
@@ -143,6 +222,26 @@ rating records its confidence.
 - Level 3: A few idioms, phrasal verbs, or undefined terms, but the meaning is clear from context.
 - Level 2: Several places where readers outside the field, or reading in a second language, would likely misread or stall.
 - Level 1: Jargon, idioms, or dense phrasing throughout; much of the text is hard for this audience.
+
+### CL-1 Cognitive load
+- section: Content
+- weight: 2
+- source: Cognitive load theory; multimedia learning principles (Mayer: coherence, segmenting, redundancy)
+- more: references/standards.md
+- Level 4: Each slide makes one main point; text is brief and supports the speaker; no decoration that competes for attention.
+- Level 3: Most slides are focused, but a few are crowded or mix several points.
+- Level 2: Many slides are text-heavy (read rather than glanced at) or combine unrelated content.
+- Level 1: Slides are dense throughout; the audience must choose between reading and listening.
+
+### DG-1 Data graphics are clear
+- section: Content
+- weight: 1
+- source: Tufte; Few; Cleveland & McGill (graphical perception)
+- more: references/standards.md
+- Level 4: Charts and tables have a clear message, labeled axes and units, direct labels where possible, and no 3-D or decoration that distorts data.
+- Level 3: Minor issues, e.g. a legend where direct labels would be clearer, or a missing unit.
+- Level 2: Some charts are hard to read: unlabeled axes, too many series, or a misleading scale.
+- Level 1: Charts are unreadable or misleading, e.g. 3-D effects, truncated axes, or text too small to read.
 
 ### CN-1 Key ideas are identifiable
 - section: Content

@@ -15,6 +15,8 @@ import extract_text  # noqa: E402
 import font_size  # noqa: E402
 import ocr  # noqa: E402
 import readability  # noqa: E402
+import layout  # noqa: E402
+import accessibility  # noqa: E402
 import scorecard  # noqa: E402
 import render  # noqa: E402
 
@@ -229,6 +231,7 @@ def _without_ocr(src, tmp_path):
     d = tmp_path / src.name
     shutil.copytree(src, d)
     for f in ("ocr.json", "font_size.json", "contrast.json", "color.json", "readability.json",
+              "layout.json", "accessibility.json",
               "scorecard.md", "scorecard.json"):
         (d / f).unlink(missing_ok=True)
     return d
@@ -237,12 +240,14 @@ def _without_ocr(src, tmp_path):
 def test_poster_font_size(posters_out, tmp_path):
     posters_out = _without_ocr(posters_out, tmp_path)
     full = load(font_size.measure(posters_out).parent, "font_size.json")
-    assert full["items"]["FS-1"]["level"] == 3 and full["findings"] == []
+    assert full["items"]["FS-1"]["level"] == 3 and [f["id"] for f in full["findings"]] == ["FS-2"]
+    # FS-2: blue hyperlinked citations at 36 pt (18.4') count as 14' because they are colored
+    assert "colored #0563c1" in full["findings"][0]["details"]
     assert any(n["code"] == "FS-PRINT-SIZE" for n in full["notices"])
     # Printing at 3/4 size makes text smaller: some blocks drop below L3.
     small = load(font_size.measure(posters_out, print_size="36x27in").parent, "font_size.json")
     assert small["m_per_pt"] == pytest.approx(full["m_per_pt"] * 0.75)
-    assert small["findings"] and small["findings"][0]["summary"].startswith("FS-1: 9 text blocks")
+    assert small["findings"] and small["findings"][0]["summary"].startswith("FS-1: 11 text blocks")
 
 
 @pytest.fixture(scope="module")
@@ -577,7 +582,50 @@ def test_readability_real_deck(ael_pptx):
 
 # ---------- generated decks with known flaws ----------
 
-DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx", "flaws-text.pptx"]
+# ---------- layout and accessibility ----------
+
+def test_font_family_names():
+    assert layout.font_family("ABCDEF+Arial-BoldItalicMT") == "Arial"
+    assert layout.font_family("Calibri,Bold") == layout.font_family("Calibri-Light") == "Calibri"
+    assert layout.font_family("TimesNewRomanPSMT") == "TimesNewRoman"
+    assert layout.font_family("1") == layout.font_family("2,Bold") == "(unnamed font)"
+
+
+def test_spaced_span_split():
+    s = {"text": "Yes          No", "bbox": [100, 0, 250, 20], "origin": [100, 16], "size_pt": 20}
+    a, b = layout._pieces(s)
+    assert (a["text"], b["text"]) == ("Yes", "No") and a["bbox"][2] < 140 < b["bbox"][0]
+
+
+def test_alt_text_status():
+    st = accessibility.alt_status
+    assert st({"alt_text": None, "name": "Picture 3"}) == "missing"
+    assert st({"alt_text": "image1.png", "name": "x"}) == "missing"
+    assert st({"alt_text": "Picture 3", "name": "Picture 3"}) == "missing"
+    assert st({"alt_text": "A chart. Description automatically generated", "name": "x"}) == "auto"
+    assert st({"alt_text": "Bar chart of scores by group", "name": "x"}) == "ok"
+
+
+def test_layout_and_accessibility_real_deck(ael_pptx):
+    extract_text.extract(ael_pptx)  # current shape records (media, title_order)
+    lay = load(layout.measure(ael_pptx).parent, "layout.json")
+    bad = {u["page"] for u in lay["units"] if u["LY-1"]["collisions"] and not u["hidden"]}
+    assert {19, 56, 58} <= bad and not bad & {41, 44}  # 41, 44: words under an opaque label, not collisions
+    assert 41 in {c["page"] for c in lay["hints"]["covered_text"]}
+    acc = load(accessibility.measure(ael_pptx).parent, "accessibility.json")
+    assert acc["items"]["AC-1"]["level"] == 1 and acc["items"]["AC-3"]["title_not_first"] > 0
+
+
+def test_accessibility_needs_pptx(genai_pair):
+    acc = load(accessibility.measure(genai_pair["pdf"]).parent, "accessibility.json")
+    assert all(it["level"] is None for it in acc["items"].values())
+    assert acc["notices"][0]["code"] == "AC-NO-PPTX"
+
+
+# ---------- generated decks with known flaws ----------
+
+DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx", "flaws-text.pptx",
+         "flaws-structure.pptx"]
 
 
 @pytest.fixture(scope="module")
@@ -595,6 +643,8 @@ def generated(tmp_path_factory):
         contrast.measure(d)
         color.measure(d)
         readability.measure(d)
+        layout.measure(d)
+        accessibility.measure(d)
         out[name] = (d, json.loads((src / name).with_suffix(".expected.json").read_text(encoding="utf-8")))
     return out
 
@@ -603,7 +653,8 @@ def generated(tmp_path_factory):
 def test_generated_deck_levels(generated, name):
     d, exp = generated[name]
     text = load(d, "text.json")
-    res = {m: load(d, f"{m}.json") for m in ("font_size", "contrast", "color", "readability")}
+    res = {m: load(d, f"{m}.json") for m in ("font_size", "contrast", "color", "readability", "layout",
+                                              "accessibility")}
     wrong = []
     for e in exp["expect"]:
         units = [u for u in res[e["measure"]]["units"] if u["page"] == e["page"]]

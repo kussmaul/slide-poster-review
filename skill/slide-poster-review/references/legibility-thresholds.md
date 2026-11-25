@@ -31,7 +31,7 @@ Compiled 2026-11-24 (QUEUE task 12) from a literature and standards review. Item
 - At **8H** these give 18 / 29 / 40 pt on a 7.5 in slide, close to common rules of thumb. At 12H they give 27 / 43 / 59 pt.
 - *Not used* (the project applies the same thresholds for everyone, as universal design). For older or low-vision audiences, scale by acuity (20/40) together with a 2–3× reserve. That gives **15 / 24 / 32′**. Confidence: moderate, since this is derived rather than taken from a standard.
 - **Caveats:**
-  - Projected slides have lower contrast than the displays these standards assume. Colored or low-contrast text may need about 1 level more.
+  - Projected slides have lower contrast than the displays these standards assume. Colored or low-contrast text may need about 1 level more. Implemented for colored text (QUEUE 22): font_size.py divides its angle by 21/16 (MIL-STD-1472F). Low contrast is left to CT-1/CT-2, to avoid counting it twice.
   - Brief labels tolerate about 1 level less than continuous reading.
 
 ## Citations

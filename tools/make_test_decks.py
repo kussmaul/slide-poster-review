@@ -9,12 +9,14 @@ Writes, for each deck, NAME.pptx and NAME.expected.json:
     flaws-color.pptx    16:9 slides: colors confusable with color-vision deficiency,
                         emphasis by color alone, links, plus controls
     flaws-text.pptx     16:9 slides: sentence length, acronyms, rare words, plus controls
+    flaws-structure.pptx 16:9 slides with real title placeholders: colliding and cut-off text,
+                        title hierarchy, alt text, missing titles, reading order, plus controls
 
 expected.json: {"deck", "kind", "expect": [...]}, each expectation
     {"measure": "font_size" | "contrast" | "color" | "readability", "page": n,
-     "key": "body" | "supporting" | "CO-1" | "CO-2" | "RD-2",
+     "key": "body" | "supporting" | "CO-1" | "CO-2" | "RD-2" | "LY-1" | "LY-2",
      "level": n  (or "max_level": n), "marker": "text in the block" (posters), "note": "..."}
-    "items" (optional): {item id: level} for deck-level items, e.g. RD-1 and RD-3.
+    "items" (optional): {item id: level} for deck-level items, e.g. RD-1, RD-3, AC-1.
 "level" is exact; "max_level" means "this flaw is found" where the exact level depends on
 rendering (e.g. OCR). Hidden slides are listed under "hidden" and must not be scored.
 
@@ -410,12 +412,106 @@ def make_text(out: Path, tmp: Path) -> dict:
             "items": {"RD-1": 2, "RD-2": 1, "RD-3": 3}}
 
 
+def _titled_layout(prs, title, body=None, title_size=None, body_size=28, hidden=False):
+    """Slide from the 'Title and Content' (or 'Title Only') layout, with a real title placeholder."""
+    s = prs.slides.add_slide(prs.slide_layouts[1 if body else 5])
+    if hidden:
+        s._element.set("show", "0")
+    s.shapes.title.text = title
+    for r in s.shapes.title.text_frame.paragraphs[0].runs:
+        r.font.name = FONT
+        if title_size:
+            r.font.size = Pt(title_size)
+    if body:
+        ph = s.placeholders[1]
+        for i, t in enumerate(body):
+            para = ph.text_frame.paragraphs[0] if i == 0 else ph.text_frame.add_paragraph()
+            run = para.add_run()
+            run.text = t
+            run.font.name = FONT
+            run.font.size = Pt(body_size)
+    return s
+
+
+def _picture(slide, path, x, y, w, alt=None, decorative=False):
+    pic = slide.shapes.add_picture(str(path), Inches(x), Inches(y), Inches(w))
+    cnv = pic._element.nvPicPr.cNvPr
+    cnv.set("descr", alt or "")
+    if decorative:
+        from lxml import etree
+        ext_lst = etree.SubElement(cnv, "{http://schemas.openxmlformats.org/drawingml/2006/main}extLst")
+        ext = etree.SubElement(ext_lst, "{http://schemas.openxmlformats.org/drawingml/2006/main}ext",
+                               uri="{C183D7F6-B498-43B3-948B-1728B52AA6E4}")
+        etree.SubElement(ext, "{http://schemas.microsoft.com/office/drawing/2017/decorative}decorative", val="1")
+    return pic
+
+
+def make_structure(out: Path, tmp: Path) -> dict:
+    prs, exp = slides_prs(), []
+    grad = png_gradient(tmp / "gradient.png")
+
+    def e(page, key, level, note=""):
+        exp.append({"measure": "layout", "page": page, "key": key, "level": level, "note": note})
+
+    s = prs.slides.add_slide(prs.slide_layouts[0])
+    s.shapes.title.text = "Generated test deck: layout and structure"
+    s.placeholders[1].text = "Each slide has one known flaw"
+    e(1, "LY-1", 4)
+
+    s = _titled_layout(prs, "Control: title, bullets, described picture",
+                       ["Short first point", "Short second point"])
+    _picture(s, grad, 7.5, 4.8, 5, alt="A gradient from dark blue to white")
+    e(2, "LY-1", 4)
+    e(2, "LY-2", 4, "44 pt title over 28 pt body")
+
+    s = _titled_layout(prs, "Picture without alt text", ["The picture below has no description"])
+    _picture(s, grad, 1, 4.5, 6)
+
+    s = _titled_layout(prs, "Decorative picture", ["The picture below is marked decorative"])
+    _picture(s, grad, 1, 4.5, 6, decorative=True)
+
+    s = blank(prs)
+    text(s, 0.6, 0.4, 12, 1.2, ["A title in a text box, not a placeholder"], size=44)
+    text(s, 0.8, 2.0, 11.5, 3, ["Screen readers find no title on this slide"], size=28)
+
+    s = _titled_layout(prs, "Title read after a picture", ["The picture comes first in reading order"])
+    pic = _picture(s, grad, 7.5, 4.8, 5, alt="A gradient")
+    tree = s.shapes._spTree
+    tree.remove(pic._element)
+    tree.insert(2, pic._element)
+
+    s = _titled_layout(prs, "Body text runs into the footer", ["Short first point"])
+    text(s, 0.8, 6.6, 6, 0.6, ["Footer text at the bottom"], size=16, color="#444444")
+    text(s, 0.8, 6.45, 11, 0.8, ["A note placed on top of the footer"], size=28, color="#000000")
+    e(7, "LY-1", 1, "two text boxes overlap")
+
+    s = _titled_layout(prs, "Text cut off at the bottom", ["Short first point"])
+    text(s, 0.8, 6.95, 11.5, 1.2, ["This line is cut off by the bottom edge of the slide"], size=36)
+    e(8, "LY-1", 1, "text box extends past the slide")
+
+    s = _titled_layout(prs, "Small title", ["Body text larger than the title"], title_size=24, body_size=40)
+    e(9, "LY-2", 1, "24 pt title over 40 pt body")
+
+    s = _titled_layout(prs, "Words hidden under a label", ["Short first point"])
+    text(s, 0.8, 4.5, 11, 1, ["These words are hidden under a white label"], size=28, color="#000000")
+    text(s, 0.6, 4.4, 12, 1.2, ["A white label on top"], size=28, color="#000000", fill="#ffffff")
+    e(10, "LY-1", 4, "covered text is not a visible collision")
+
+    s = _titled_layout(prs, "Hidden slide with colliding text", ["Short first point"], hidden=True)
+    text(s, 0.8, 4.5, 11, 1, ["Overlapping words one"], size=28)
+    text(s, 0.8, 4.55, 11, 1, ["Overlapping words two"], size=28)
+
+    save(prs, out / "flaws-structure.pptx")
+    return {"deck": "flaws-structure.pptx", "kind": "slides", "hidden": [11], "expect": exp,
+            "items": {"AC-1": 2, "AC-2": 3, "AC-3": 2}}
+
+
 def make_all(out: Path) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / "_assets"
     tmp.mkdir(exist_ok=True)
     paths = []
-    for maker in (make_slides, make_poster, make_color, make_text):
+    for maker in (make_slides, make_poster, make_color, make_text, make_structure):
         exp = maker(out, tmp)
         (out / exp["deck"]).with_suffix(".expected.json").write_text(
             json.dumps(exp, indent=2), encoding="utf-8")
