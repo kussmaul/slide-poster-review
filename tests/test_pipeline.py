@@ -720,3 +720,31 @@ def test_overflow_matches_nearest_shape_in_column():
     out = layout.overflows(page, {}, boxes)
     assert [(o["shape"], o["text"]) for o in out] == [("A", "share ideas")]
     assert layout.off_page(page, [box("E", [730, 10, 900, 40], "parked note")]) == ["parked note"]
+
+
+EXAMPLES = sorted((SKILL / "rubrics" / "examples").glob("*.md"))
+
+
+@pytest.mark.parametrize("path", EXAMPLES, ids=lambda p: p.stem)
+def test_example_rubrics_parse(path):
+    sections, items = scorecard.load_rubric([path])
+    _, own = scorecard.parse_rubric(path.read_text(encoding="utf-8"))
+    assert own and scorecard.rubric_title(path).startswith("Example: ")
+    for iid in own:
+        it = items[iid]
+        assert it["section"] in sections and it.get("name")
+        if it.get("weight", 1) > 0:
+            assert set(it["levels"]) == {1, 2, 3, 4}, iid
+        if iid.startswith("FM-"):
+            assert it["type"] == "judged" and it["section"] == "Format"
+
+
+def test_weight_zero_leaves_item_out():
+    sections = {"A": {"weight": 1}, "B": {"weight": 0}}
+    items = {"a1": {"id": "a1", "name": "A one", "section": "A", "weight": 1, "type": "measured"},
+             "a2": {"id": "a2", "name": "A two", "section": "A", "weight": 0, "type": "measured"},
+             "b1": {"id": "b1", "name": "B one", "section": "B", "weight": 1, "type": "judged"}}
+    sc = scorecard.score(sections, items, {"a1": {"level": 4, "confidence": "high"},
+                                           "a2": {"level": 1, "confidence": "high", "headline": "x"}})
+    assert sc["overall"] == 4.0 and sc["issues"] == [] and sc["items_total"] == 1
+    assert sc["not_assessed_items"] == [] and sc["not_assessed_sections"] == []

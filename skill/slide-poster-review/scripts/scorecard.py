@@ -13,7 +13,8 @@ Reads from OUTPUT_DIR:
     accessibility.json (accessibility.py) measured items AC-1 to AC-3
     judgments.json     (the agent)      judged items, see below
 Rubric: rubrics/default.md, then each --rubric file in order. A later file overrides fields of an
-item with the same ID, adds new items, and overrides section weights by name.
+item with the same ID, adds new items, and overrides section weights by name. Weight 0 leaves an
+item or section out entirely (not scored, not listed). Examples: rubrics/examples/.
 
 judgments.json:
     {"key_ideas": ["...", ...],                      # inferred; [] if unclear
@@ -85,6 +86,14 @@ def parse_rubric(text: str) -> tuple[dict, dict]:
     return sections, items
 
 
+def rubric_title(path: Path) -> str:
+    """The file's '# ' heading, else its name."""
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return Path(path).stem
+
+
 def load_rubric(extra: list[Path] = ()) -> tuple[dict, dict]:
     sections, items = parse_rubric((SKILL / "rubrics" / "default.md").read_text(encoding="utf-8"))
     for path in extra:
@@ -150,10 +159,13 @@ def collect_results(out_dir: Path, items: dict) -> tuple[dict, list, dict | None
 def score(sections: dict, items: dict, results: dict) -> dict:
     by_section: dict = {}
     for it in items.values():
-        by_section.setdefault(it.get("section", "Other"), []).append(it)
+        if it.get("weight", 1) > 0:  # weight 0: left out by a context rubric
+            by_section.setdefault(it.get("section", "Other"), []).append(it)
     rows, issues, not_assessed_sections, not_assessed_items = [], [], [], []
     total_w = total = 0.0
     for name, sec in sections.items():
+        if sec.get("weight", 1) <= 0:
+            continue
         its = by_section.get(name, [])
         done = [it for it in its if it["id"] in results]
         if not done:
@@ -183,7 +195,8 @@ def score(sections: dict, items: dict, results: dict) -> dict:
     issues.sort(key=lambda x: (-x["importance"], -x["count"]))
     assessed = sum(len(r["items"]) for r in rows)
     return {"overall": round(total / total_w, 1) if total_w else None,
-            "items_assessed": assessed, "items_total": len(items),
+            "items_assessed": assessed,
+            "items_total": sum(len(v) for k, v in by_section.items() if sections.get(k, {}).get("weight", 1) > 0),
             "sections": rows, "issues": issues,
             "not_assessed_sections": not_assessed_sections,
             "not_assessed_items": [{"id": it["id"], "name": it["name"]} for it in not_assessed_items]}
@@ -223,8 +236,10 @@ def _context_line(manifest: dict, fs: dict | None, rd: dict | None = None) -> st
 
 
 def render_markdown(src_name: str, context: str, sc: dict, notices: list, judgments: dict | None,
-                    problems: list) -> str:
+                    problems: list, rubric_names: list[str] = ()) -> str:
     L = [f"# Scorecard: {src_name}", "", context, ""]
+    if rubric_names:
+        L[-1:-1] = [f"Context rubric: {'; '.join(rubric_names)} (on top of the default rubric)."]
     L += ["| Section and item | Score (1–4) |", "|---|---|"]
     overall = "—" if sc["overall"] is None else f"{sc['overall']:.1f}"
     L.append(f"| **Overall** | **{overall}** |")
@@ -275,10 +290,11 @@ def build(out_dir: Path, extra_rubrics: list[Path] = ()) -> Path:
         notices += (_read(out_dir / measure_file) or {}).get("notices", [])
     src_name = Path(manifest["source"]).name
     rd = _read(out_dir / "readability.json")
-    md = render_markdown(src_name, _context_line(manifest, fs, rd), sc, notices, judgments, problems)
+    names = [rubric_title(Path(r)) for r in extra_rubrics]
+    md = render_markdown(src_name, _context_line(manifest, fs, rd), sc, notices, judgments, problems, names)
     (out_dir / "scorecard.md").write_text(md, encoding="utf-8")
     (out_dir / "scorecard.json").write_text(json.dumps(
-        {"source": manifest["source"], **sc, "notices": notices, "problems": problems,
+        {"source": manifest["source"], "context_rubrics": names, **sc, "notices": notices, "problems": problems,
          "key_ideas": (judgments or {}).get("key_ideas")}, indent=2, ensure_ascii=False), encoding="utf-8")
     return out_dir / "scorecard.md"
 

@@ -2,7 +2,7 @@
 
 ## 11–20 Design
 - 12: Check the angle thresholds against vision and legibility research. Done: adopted 10/16/22′ at 8H for slides and 1.5 m for posters (evidence in `references/legibility-thresholds.md`). Revisit after validation (29).
-- 13: Find or draft example context rubrics for the format and content sections: one from a POGIL-style source, one conference or organization, and one course or lab.
+- 13: Find or draft example context rubrics for the format and content sections: one from a POGIL-style source, one conference or organization, and one course or lab. Drafted (2026-11-25), in `rubrics/examples/`, each labeled as an example to adapt (not an official rubric): `pogil-class-session.md` (FM-1 session structure, FM-2 actionable instructions, FM-3 answers not revealed early (overlaps 48); CN-1 = content and process objectives; CL-1 = supports team work), `conference-poster.md` (FM-1 required parts, FM-2 reading path, FM-3 size per the call; CN-1 = main finding in seconds; LY-4 weight 0), `course-presentation.md` (FM-1 required slides, FM-2 citations on the slide, FM-3 slides per minute). Each lists its "Judging needs" for intake; SKILL.md offers them when the user has no rubric. Scorecard: weight 0 leaves an item or section out; the context rubric's title is shown. Open: replace with real rubrics where available (e.g. a real call for posters); FM items not yet in the judged eval (25).
 
 ## 21–40 Build
 - 21: Write the rendering pipeline: PPTX/PDF → page images, plus text runs with their sizes and colors. Scale by slide height or poster print factor.

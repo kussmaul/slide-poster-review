@@ -27,7 +27,10 @@ Ask only for what you don't already know, in one short message:
   or experts in the field (`--audience experts`). This sets the vocabulary level only; text size,
   contrast, and the other measures are the same for every audience. Also ask for the language if
   the text isn't English (`--lang de`).
-- **A context rubric** from an organization, conference, course, or lab, if they have one.
+- **A context rubric** from an organization, conference, course, or lab, if they have one. If
+  not, offer an example from `rubrics/examples/` when one fits: a POGIL-style class session, a
+  conference poster, or a course presentation. Read the chosen rubric's "Judging needs" line
+  and ask for those facts too (e.g. the talk's time limit).
 - **An abstract or learning objectives**, if available; they help judge key ideas.
 
 ## 2. Render and measure
@@ -111,6 +114,10 @@ above 0 on a bar or column chart truncates the bars; .pptx only) and pictures of
 the page images. Ask: is the message clear, are axes and units labeled, could labels replace the
 legend, does anything distort the data (3-D, truncated axes)? If the deck has no data graphics,
 leave DG-1 out of `judgments.json`.
+
+**Context items (FM-*, and any item a context rubric redefines).** Judge them from the rubric's
+level descriptions, using the facts gathered at intake. If a fact is missing (e.g. no time limit
+for FM-3), leave the item out of `judgments.json` and say why.
 
 Describe what is wrong, not how to fix it: "The conclusion slide lists topics rather than
 findings", not "Change the conclusion to say…".

@@ -221,7 +221,10 @@ Sources are in [references/standards.md](skill/slide-poster-review/references/st
   line of details.
 - The rubric is [rubrics/default.md](skill/slide-poster-review/rubrics/default.md). An organization,
   conference, course, or lab can supply a context rubric that changes weights or level
-  descriptions, or adds items, by repeating item IDs.
+  descriptions, or adds items, by repeating item IDs. Weight 0 leaves an item or section out.
+  Three examples, with Format items, are in
+  [rubrics/examples/](skill/slide-poster-review/rubrics/examples/): a POGIL-style class session,
+  a conference poster, and a course presentation.
 
 ## Repository layout
 
