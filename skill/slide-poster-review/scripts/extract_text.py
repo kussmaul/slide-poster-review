@@ -198,7 +198,85 @@ def _chart_info(sh) -> dict | None:
     shown = [d for p in plots for d in p.iter(f"{C}dLbls")
              for v in d.findall(f"{C}showVal") + d.findall(f"{C}showPercent") if v.get("val") in ("1", "true")]
     info["data_labels"] = bool(shown)
+    try:
+        info.update(_chart_colors(plots, _theme_colors(sh.part)))
+    except Exception:  # colors are a hint for CO-1; never fail extraction over them
+        pass
     return info
+
+
+A_MAIN = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+ACCENTS = [f"accent{i}" for i in range(1, 7)]
+_THEMES: dict = {}
+
+
+def _theme_colors(slide_part) -> dict[str, str]:
+    """Scheme colour name -> '#rrggbb' from the slide master's theme (accent1..6, dk1, lt1, ...)."""
+    from pptx.opc.constants import RELATIONSHIP_TYPE as RT
+    from lxml import etree
+    master = slide_part.slide.slide_layout.slide_master.part
+    if id(master) not in _THEMES:
+        theme = etree.fromstring(master.part_related_by(RT.THEME).blob)
+        scheme = theme.find(f".//{A_MAIN}clrScheme")
+        colors = {}
+        for el in scheme if scheme is not None else []:
+            c = el[0] if len(el) else None
+            val = c.get("lastClr") or c.get("val") if c is not None else None
+            if val and re.fullmatch(r"[0-9A-Fa-f]{6}", val):
+                colors[el.tag.replace(A_MAIN, "")] = "#" + val.lower()
+        colors.update({"tx1": colors.get("dk1"), "bg1": colors.get("lt1"),
+                       "tx2": colors.get("dk2"), "bg2": colors.get("lt2")})
+        _THEMES[id(master)] = colors
+    return _THEMES[id(master)]
+
+
+def _resolve(fill_parent, theme: dict) -> str | None:
+    """'#rrggbb' of the first solid fill under an spPr-like element (srgbClr or schemeClr)."""
+    if fill_parent is None:
+        return None
+    solid = fill_parent.find(f"{A_MAIN}solidFill")
+    if solid is None or not len(solid):
+        return None
+    c = solid[0]
+    tag, val = c.tag.replace(A_MAIN, ""), c.get("val")
+    if tag == "srgbClr" and val:
+        return "#" + val.lower()
+    if tag == "schemeClr":
+        return theme.get(val)  # lumMod/lumOff tints are ignored: the hue is what matters here
+    return None
+
+
+def _chart_colors(plots, theme: dict) -> dict:
+    """Colours that tell series (or, with varyColors, the points of one series) apart, for CO-1.
+    Explicit fills or lines from the chart XML; otherwise Office's automatic accent1..6 order."""
+    C = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
+    out, by = [], "series"
+    for plot in plots:
+        line_like = any(k in plot.tag for k in ("lineChart", "radarChart", "scatterChart"))
+        sers = plot.findall(f"{C}ser")
+        vary = plot.find(f"{C}varyColors")
+        if len(sers) == 1 and vary is not None and vary.get("val") in ("1", "true"):
+            by, ser = "point", sers[0]
+            names = [v.text for v in ser.iterfind(f"{C}cat//{C}pt/{C}v")]
+            n = ser.find(f".//{C}val//{C}ptCount")
+            count = int(n.get("val")) if n is not None else len(names)
+            explicit = {int(d.find(f"{C}idx").get("val")): _resolve(d.find(f"{C}spPr"), theme)
+                        for d in ser.findall(f"{C}dPt") if d.find(f"{C}idx") is not None}
+            for k in range(count):
+                out.append({"name": names[k] if k < len(names) else f"point {k + 1}",
+                            "rgb": explicit.get(k) or theme.get(ACCENTS[k % 6])})
+            continue
+        for ser in sers:
+            idx = ser.find(f"{C}idx")
+            k = int(idx.get("val")) if idx is not None else len(out)
+            sp = ser.find(f"{C}spPr")
+            ln = sp.find(f"{A_MAIN}ln") if sp is not None else None
+            rgb = (_resolve(ln, theme) or _resolve(sp, theme)) if line_like else (_resolve(sp, theme)
+                                                                                 or _resolve(ln, theme))
+            name = ser.find(f"{C}tx//{C}v")
+            out.append({"name": name.text if name is not None else f"series {k + 1}",
+                        "rgb": rgb or theme.get(ACCENTS[k % 6])})
+    return {"colors": [c for c in out if c["rgb"]], "colors_by": by}
 
 
 def _media_kind(sh, st_name: str | None) -> str | None:

@@ -626,7 +626,8 @@ def test_accessibility_needs_pptx(genai_pair):
 
 DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx", "flaws-text.pptx",
          "flaws-structure.pptx", "flaws-4x3.pptx", "flaws-poster-half.pptx",
-         "judged-clear.pptx", "judged-poor.pptx", "judged-middle.pptx"]  # judged-*: measured checks only; evals in tools/
+         "judged-clear.pptx", "judged-poor.pptx", "judged-middle.pptx",
+         "judged-low.pptx"]  # judged-*: measured checks only; evals in tools/
 
 
 @pytest.fixture(scope="module")
@@ -702,6 +703,41 @@ def test_chart_hints_for_data_graphics(generated):
             for c in poor] == [(4, True, 55.0, False, False)]  # 3-D chart read from XML
     assert [(c["is_3d"], c["value_axis_min"], c["value_axis_title"], c["data_labels"])
             for c in clear] == [(False, 0.0, True, True)]
+
+
+def test_chart_series_colors_for_co1(generated):
+    """Thin chart lines cover too little of the page for the pixel palette; CO-1 reads chart colors."""
+    c = load(generated["judged-low.pptx"][0], "color.json")
+    p5 = next(u for u in c["units"] if u["page"] == 5)["CO-1"]
+    chart = [x for x in p5["pairs"] if x.get("source") == "chart"]
+    assert chart and chart[0]["level"] == 1 and set(chart[0]["names"]) == {"Sec 01", "Sec 05"}
+    assert "chart series 'Sec 01' and 'Sec 05'" in next(f for f in c["findings"] if f["id"] == "CO-1")["details"]
+    clear = load(generated["judged-clear.pptx"][0], "text.json")["pptx"]["slides"]
+    cols = [sh["chart"]["colors"] for s in clear for sh in s["shapes"] if sh.get("chart")]
+    assert cols == [[{"name": "Before", "rgb": "#0072b2"}, {"name": "After", "rgb": "#e69f00"}]]
+
+
+def test_chart_colors_default_to_theme_accents(tmp_path):
+    from pptx import Presentation
+    from pptx.chart.data import CategoryChartData
+    from pptx.enum.chart import XL_CHART_TYPE
+    from pptx.util import Inches
+    prs = Presentation()
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    data = CategoryChartData()
+    data.categories = ["a", "b"]
+    data.add_series("One", (1, 2))
+    data.add_series("Two", (2, 1))
+    s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, 0, 0, Inches(4), Inches(3), data)
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    s.shapes.add_chart(XL_CHART_TYPE.PIE, 0, 0, Inches(4), Inches(3), data)
+    prs.save(tmp_path / "c.pptx")
+    slides = extract_text.pptx_structure(tmp_path / "c.pptx")["slides"]
+    bar, pie = (next(sh["chart"] for sh in sl["shapes"] if sh.get("chart")) for sl in slides)
+    accents = extract_text._theme_colors(Presentation(str(tmp_path / "c.pptx")).slides[0].part)
+    assert [c["rgb"] for c in bar["colors"]] == [accents["accent1"], accents["accent2"]]
+    assert bar["colors_by"] == "series" and [c["name"] for c in bar["colors"]] == ["One", "Two"]
+    assert pie["colors_by"] == "point" and [c["name"] for c in pie["colors"]] == ["a", "b"]
 
 
 def test_overflow_matches_nearest_shape_in_column():

@@ -17,8 +17,12 @@ Writes, for each deck, NAME.pptx and NAME.expected.json:
     flaws-poster-half.pptx  24x18 in poster file printed at 48x36 in ("print_size"): sizes
                         double when printed
     judged-clear.pptx, judged-poor.pptx  the same short talk done well and badly, and
-    judged-middle.pptx  another talk with mixed signals (levels 2-3), for evals of
+    judged-middle.pptx  another talk with mixed signals (levels 2-3), judged-low.pptx a third
+                        aimed at Level 2 on every item, for evals of
                         the agent's judged items (tools/eval_judgments.py)
+    judged-poster-clear.pptx, judged-poster-middle.pptx, judged-poster-poor.pptx
+                        conference posters at levels 3-4, 2-3 and 1-2, judged with the
+                        conference-poster example rubric
 
 expected.json: {"deck", "kind", "expect": [...]}, each expectation
     {"measure": "font_size" | "contrast" | "color" | "readability", "page": n,
@@ -744,10 +748,11 @@ def make_judged_poor(out: Path, tmp: Path) -> dict:
         b.line.fill.background()
     _titled_layout(prs, "Other", ["Low-hanging fruit: ballpark the ROI on TA FTEs",
                                   "Circle back re: LMS analytics", "Questions?"], body_size=28)
-    # FM-1: no names or date, outline, conclusion, or references; FM-3: 5 content slides in 3 minutes
+    # FM-1: no names or date, outline, conclusion, or references
+    # FM-3: 4-5 content slides in 2 minutes (Level 1 or 2, however "Other" is counted)
     save(prs, out / "judged-poor.pptx")
     return {"deck": "judged-poor.pptx", "kind": "slides", "hidden": [], "expect": [],
-            "intake": {"rubric": COURSE_RUBRIC, "time_limit_minutes": 3},
+            "intake": {"rubric": COURSE_RUBRIC, "time_limit_minutes": 2},
             "judged": {k: [1, 2] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4", "FM-1", "FM-2", "FM-3")}}
 
 
@@ -812,13 +817,251 @@ def make_judged_middle(out: Path, tmp: Path) -> dict:
                           ["10 minutes", "ten minutes", "little time", "cheap", "low cost", "low-cost"]]}
 
 
+def make_judged_low(out: Path, tmp: Path) -> dict:
+    """A third talk aimed at Level 2 on every judged item, to test the 2/3 boundary from below."""
+    prs = slides_prs()
+    s = prs.slides.add_slide(prs.slide_layouts[0])
+    s.shapes.title.text = "Online Homework Pilot"  # CN-1: topic titles, no summary
+    s.placeholders[1].text = "Chris Patel · Math department meeting · 3 February 2026"
+    _titled_layout(prs, "Background", [  # CL-1 / RD-4 / FM-2: dense, idioms, uncited data
+        "Our paper homework system has been on its last legs for years",
+        "DFW rates in Calc I hover around 30%, about the national average",
+        "The vendor says students who use the platform score 20% higher",
+        "TA grading load is through the roof in the fall term",
+        "Students often hand in homework late or not at all",
+        "Other departments have already moved to online homework",
+        "The dean asked us to look into it last spring",
+        "We wanted to try it before the budget cycle"], body_size=24)
+    _titled_layout(prs, "Platform", [
+        "LTI 1.3 integration with the LMS; SSO through the campus IdP",
+        "Algorithmic item banks with randomized parameters",
+        "Auto-graded, with partial credit for multi-part items",
+        "Gradebook sync runs nightly", "ADA/VPAT documentation requested, not yet received",
+        "Per-seat licensing; no site license"], body_size=24)
+    _titled_layout(prs, "Pilot design", [
+        "Six sections of Calc I in the fall term", "Sections 01-03 used online homework",
+        "Sections 04-06 kept paper homework", "Same textbook, exams, and homework problems",
+        "Homework counted for 10% of the grade", "Instructors were not randomly assigned",
+        "Students could not switch sections after week 2"], body_size=24)
+    s = _titled_layout(prs, "Completion")  # DG-1 / CO-3: 6 series, no axis titles, colors alone
+    data = CategoryChartData()
+    data.categories = [f"W{w}" for w in range(1, 13)]
+    for name, base in (("Sec 01", 90), ("Sec 02", 87), ("Sec 03", 85), ("Sec 04", 74), ("Sec 05", 70),
+                       ("Sec 06", 68)):
+        data.add_series(name, [base - (w % 3) - w // 2 for w in range(12)])
+    ch = s.shapes.add_chart(XL_CHART_TYPE.LINE, Inches(0.8), Inches(1.6), Inches(11.7), Inches(5.6),
+                            data).chart
+    ch.font.name, ch.font.size = FONT, Pt(18)
+    ch.has_legend = True
+    ch.legend.position = XL_LEGEND_POSITION.RIGHT
+    ch.legend.include_in_layout = False
+    for sr, c in zip(ch.plots[0].series, ["#2ca02c", "#d62728", "#8c8c3c", "#b5651d", "#6b8e23", "#cd5c5c"]):
+        sr.smooth = False
+        sr.format.line.color.rgb = rgb(c)
+        sr.format.line.width = Pt(3)
+    ch.value_axis.minimum_scale, ch.value_axis.maximum_scale = 0, 100
+    s = _titled_layout(prs, "Scores")
+    _bar_chart(s, 0.8, 1.6, 11.7, 5.6, ["Exam 1", "Exam 2", "Exam 3", "Final"],
+               {"Online": (72, 70, 74, 71), "Paper": (70, 69, 71, 70)}, ["#0072b2", "#e69f00"], 18,
+               legend=True, labels=False, axis_max=100)
+    _titled_layout(prs, "Student survey", [  # CL-1: one finding buried among unrelated points
+        "Response rate was 58% (n = 141)", "Most students (72%) preferred online homework",
+        "Some said the instant feedback helped", "Some said typing math answers was a pain",
+        "Wi-Fi in the dorms was spotty in October", "A few asked for a printed copy of each problem set",
+        "Several mentioned the parking situation", "Two asked for more office hours"], body_size=22)
+    _titled_layout(prs, "Cost", [
+        "$35 per student per term", "Paper grading: about 10 TA hours per week",
+        "Online: about 2 TA hours per week", "Similar savings at other campuses (Lee, 2024)"], body_size=28)
+    _titled_layout(prs, "Issues", [
+        "SSO outage in week 3 locked students out for a day", "Some items had answer-format gotchas",
+        "Gradebook sync double-counted one assignment", "Students on the waitlist had no access at first",
+        "The vendor's support line is hit or miss", "Accessibility review still pending"], body_size=24)
+    _titled_layout(prs, "Next steps", [
+        "Decide by March", "Talk to the dean about funding", "Ask the bookstore about bundles",
+        "Finish the accessibility review"], body_size=28)
+    # FM-1: no outline, references, or questions slide (three missing); FM-3: 9 content slides in 5 minutes
+    save(prs, out / "judged-low.pptx")
+    return {"deck": "judged-low.pptx", "kind": "slides", "hidden": [], "expect": [],
+            "intake": {"rubric": COURSE_RUBRIC, "time_limit_minutes": 5},
+            "judged": {k: [2, 2] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4", "FM-1", "FM-2", "FM-3")},
+            "key_ideas": [["completion", "completed", "turned in", "hand in", "more homework"],
+                          ["TA", "grading", "hours"],
+                          ["preferred", "72%"]]}
+
+
+# ---------- judged posters: conference-poster example rubric ----------
+
+POSTER_RUBRIC = "rubrics/examples/conference-poster.md"
+POSTER_CALL = "landscape posters only, up to 48x36 in"
+POSTER_ITEMS = ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4", "FM-1", "FM-2", "FM-3")
+
+
+def _bar_chart(slide, x, y, w, h, categories, series, colors, size, legend=False, labels=True,
+               value_title=None, axis_min=0, axis_max=None, three_d=False):
+    data = CategoryChartData()
+    data.categories = categories
+    for name, values in series.items():
+        data.add_series(name, values)
+    ch = slide.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(x), Inches(y), Inches(w), Inches(h),
+                                data).chart
+    ch.font.name, ch.font.size = FONT, Pt(size)
+    ch.has_title = False
+    ch.has_legend = legend
+    if legend:
+        ch.legend.position = XL_LEGEND_POSITION.RIGHT
+        ch.legend.include_in_layout = False
+    for sr, c in zip(ch.plots[0].series, colors):
+        sr.format.fill.solid()
+        sr.format.fill.fore_color.rgb = rgb(c)
+    if labels:
+        ch.plots[0].has_data_labels = True
+        ch.plots[0].data_labels.font.size = Pt(size)
+    ch.value_axis.minimum_scale = axis_min
+    if axis_max is not None:
+        ch.value_axis.maximum_scale = axis_max
+    if value_title:
+        ch.value_axis.has_title = True
+        ch.value_axis.axis_title.text_frame.text = value_title
+        for r in ch.value_axis.axis_title.text_frame.paragraphs[0].runs:
+            r.font.size, r.font.name = Pt(size), FONT
+    if three_d:
+        _make_3d(ch)  # last: python-pptx can't read 3-D plots back
+    return ch
+
+
+def _poster_intake(print_size: str) -> dict:
+    return {"what": "a research poster for a conference", "rubric": POSTER_RUBRIC,
+            "print_size": print_size, "call": POSTER_CALL}
+
+
+def make_judged_poster_clear(out: Path, tmp: Path) -> dict:
+    """48x36 in, as the call allows: finding in the title, every part, numbered columns."""
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(48), Inches(36)
+    s = blank(prs)
+    text(s, 1, 0.7, 46, 2.6, ["Studying a worked example first halved errors on new problems"],
+         size=96, bold=True)
+    text(s, 1, 3.4, 46, 1.2, ["Maya Chen (Riverside College, Chemistry) and Omar Haddad "
+                              "(Riverside College, Education)"], size=44)
+
+    def head(x, y, t):
+        text(s, x, y, 14.5, 1.3, [t], size=60, bold=True, color="#1f3864")
+
+    head(1, 5.5, "1. Question")
+    text(s, 1, 6.9, 14.5, 5, ["Does studying a worked example before each practice problem help "
+                              "students solve new problems?"], size=40)
+    head(1, 12.5, "2. Methods")
+    text(s, 1, 13.9, 14.5, 12, bullets(["120 students in general chemistry",
+                                        "Half studied a worked example before each problem",
+                                        "Half solved the same problems with no example",
+                                        "All took the same test of new problems"]), size=40)
+    head(16.75, 5.5, "3. Results")
+    _bar_chart(s, 16.75, 7.0, 14.5, 17, ["Worked example first", "Problems only"],
+               {"Errors": (2.1, 4.3)}, ["#0072b2"], 36, value_title="Errors per test (mean)", axis_max=5)
+    text(s, 16.75, 24.5, 14.5, 4, ["Students who studied an example first made 2.1 errors per test; "
+                                   "the others made 4.3."], size=44, bold=True)
+    head(32.5, 5.5, "4. Conclusions")
+    text(s, 32.5, 6.9, 14.5, 14, bullets(["A worked example first halved errors on new problems",
+                                          "It took no extra class time",
+                                          "Weaker and stronger students both gained"]), size=40)
+    head(32.5, 22, "5. References")
+    text(s, 32.5, 23.4, 14.5, 4, ["Sweller, J., & Cooper, G. A. (1985). The use of worked examples as a "
+                                  "substitute for problem solving in learning algebra. Cognition and "
+                                  "Instruction, 2(1), 59-89."], size=32)
+    text(s, 32.5, 29, 14.5, 2, ["Contact: mchen@example.edu"], size=40)
+    save(prs, out / "judged-poster-clear.pptx")
+    return {"deck": "judged-poster-clear.pptx", "kind": "poster", "hidden": [], "expect": [],
+            "print_size": "48x36in", "intake": _poster_intake("48x36 in"),
+            "judged": {k: [3, 4] for k in POSTER_ITEMS},
+            "key_ideas": [["halved", "half", "fewer errors", "errors", "4.3", "2.1"]]}
+
+
+def make_judged_poster_middle(out: Path, tmp: Path) -> dict:
+    """24x18 in file printed at 48x36 (FM-3 Level 3); sizes are half the printed size."""
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(24), Inches(18)
+    s = blank(prs)
+    text(s, 0.5, 0.35, 23, 1.2, ["Peer Tutoring in First-Year Math"], size=48, bold=True)  # CN-1: a topic
+    text(s, 0.5, 1.6, 23, 0.6, ["Rosa Diaz and Tom Becker, Lakeside University, Department of Mathematics"],
+         size=22)
+
+    def head(x, y, w, t):
+        text(s, x, y, w, 0.7, [t], size=30, bold=True, color="#1f3864")
+
+    head(0.5, 2.6, 7.2, "Background")
+    text(s, 0.5, 3.3, 7.2, 3.6, ["Many first-year students fall behind in calculus. Peer tutoring is "
+                                 "cheap, but the jury is still out on whether it pays off for grades."],
+         size=20)
+    head(0.5, 7.4, 7.2, "Methods")  # CL-1: two crowded blocks (this and Discussion)
+    text(s, 0.5, 8.1, 7.2, 9.5, bullets([
+        "Two calculus sections (n = 210) in the fall term, taught by different instructors using the "
+        "same syllabus, homework sets and exams",
+        "One section offered weekly peer tutoring; the other had the usual office hours only",
+        "Tutors were second-year students who had earned an A, trained for 6 hours on questioning",
+        "Sessions: 50 minutes, groups of 4, held in the library on Tuesday and Thursday evenings",
+        "Attendance was optional and logged by the tutors on a paper sign-in sheet",
+        "Outcome: the common final exam (100 points), graded by a shared rubric",
+        "We also surveyed students at the end of term about study habits and confidence"]), size=16)
+    head(8.3, 2.6, 15.2, "Results")  # FM-2: one wide box over two columns; what comes next is unclear
+    _bar_chart(s, 8.3, 3.3, 15.2, 6.6, ["Exam 1", "Exam 2", "Final"],
+               {"Tutoring offered": (68, 71, 74), "No tutoring": (66, 66, 68)}, ["#0072b2", "#e69f00"], 16,
+               legend=True, labels=False, axis_max=100)  # DG-1 / CO-3: legend only, no axis title
+    head(8.3, 10.4, 7.2, "Student comments")
+    text(s, 8.3, 11.1, 7.2, 5, ['"The tutors explained it in a way I could follow"',
+                                '"I went every week before the exams"'], size=20)
+    head(8.3, 13.0, 7.2, "Discussion")  # FM-2: after Results, comments, Discussion or Conclusions?
+    text(s, 8.3, 13.7, 7.2, 4.2, [
+        "The sections had different instructors, so some of the difference may come from teaching style. "
+        "Students chose whether to attend, and stronger students may have come more often. The survey "
+        "suggested that tutored students studied more regularly, but response rates were low (41%). "
+        "Tutors also reported gains in their own understanding, which we did not measure. Funding for "
+        "tutor pay came from a small internal grant that ends next year, and we are now planning a "
+        "version for statistics."], size=14)
+    head(16.3, 10.4, 7.2, "Conclusions")
+    text(s, 16.3, 11.1, 7.2, 4.5, bullets(["The tutoring section scored about 6 points higher on the final",
+                                           "Students who came more often gained more"]), size=16)  # CN-1: small
+    text(s, 16.3, 16.3, 7.2, 0.8, ["Contact: rdiaz@example.edu"], size=18)
+    # FM-1: no references (one part missing)
+    save(prs, out / "judged-poster-middle.pptx")
+    return {"deck": "judged-poster-middle.pptx", "kind": "poster", "hidden": [], "expect": [],
+            "print_size": "48x36in", "intake": _poster_intake("48x36 in"),
+            "judged": {k: [2, 3] for k in POSTER_ITEMS},
+            "key_ideas": [["higher", "6 points", "six points", "scored", "better"],
+                          ["more often", "came more", "attend", "gained more"]]}
+
+
+def make_judged_poster_poor(out: Path, tmp: Path) -> dict:
+    """Portrait, though the call allows landscape only; scattered unlabeled blocks; most parts missing."""
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(36), Inches(48)
+    s = blank(prs)
+    text(s, 1, 0.8, 34, 2.5, ["WE-PS Project"], size=88, bold=True)  # no authors, affiliations, or contact
+    text(s, 15, 4.5, 20, 12, [  # no headings anywhere; blocks at odd positions
+        "Leveraging schema-acquisition affordances via example-based instructional sequencing in "
+        "high-enrollment gateway chemistry contexts is low-hanging fruit for moving the needle on "
+        "transfer-relevant problem-solving outcome metrics, though the literature is all over the map "
+        "and at the end of the day the proof of the pudding is in the eating."], size=32)
+    text(s, 1, 5, 12, 14, ["N=120, GC1, F26, IRB exempt, 2 cond., counterbal., Qualtrics, 14 items, "
+                           "WE vs PS, LMS export, TA-coded, alpha .81, 3 dropped, 2 late, room swap wk 6"],
+         size=30)
+    _bar_chart(s, 4, 20, 26, 14, ["WE", "PS"], {"Pre": (5.1, 5.0), "Post": (2.1, 4.3)},
+               ["#c05040", "#609040"], 28, legend=True, labels=False, axis_min=1.5, three_d=True)
+    text(s, 22, 36, 13, 3, ["Red = good"], size=36)
+    text(s, 1, 38, 18, 8, ["Future: more sections? other courses? online version? grant?"], size=32)
+    save(prs, out / "judged-poster-poor.pptx")
+    return {"deck": "judged-poster-poor.pptx", "kind": "poster", "hidden": [], "expect": [],
+            "print_size": "36x48in", "intake": _poster_intake("36x48 in (portrait)"),
+            "judged": {k: [1, 2] for k in POSTER_ITEMS}}
+
+
 def make_all(out: Path) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / "_assets"
     tmp.mkdir(exist_ok=True)
     paths = []
     for maker in (make_slides, make_poster, make_color, make_text, make_structure, make_4x3,
-                  make_poster_half, make_judged_clear, make_judged_poor, make_judged_middle):
+                  make_poster_half, make_judged_clear, make_judged_poor, make_judged_middle, make_judged_low,
+                  make_judged_poster_clear, make_judged_poster_middle, make_judged_poster_poor):
         exp = maker(out, tmp)
         (out / exp["deck"]).with_suffix(".expected.json").write_text(
             json.dumps(exp, indent=2), encoding="utf-8")

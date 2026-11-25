@@ -1,20 +1,21 @@
 """Dev tool: evaluate the agent's judged items on decks with known judged levels.
 
 Usage:
-    python tools/eval_judgments.py prepare [EVAL_DIR] [--runs N] [--seed S]
+    python tools/eval_judgments.py prepare [EVAL_DIR] [--runs N] [--seed S] [--only GLOB]
     python tools/eval_judgments.py check   [EVAL_DIR]
 
 EVAL_DIR defaults to .cache/evals/. `prepare` regenerates the decks (tools/make_test_decks.py),
 runs the measuring scripts on every deck with "judged" levels in its .expected.json, then copies
-the results into EVAL_DIR/run1 .. runN, renamed talk-A, talk-B, ... in a shuffled order so that
+the results into EVAL_DIR/run1 .. runN, renamed talk-A, poster-B, ... in a shuffled order so that
 neither folder names nor paths reveal which deck is which. The mapping goes to EVAL_DIR/key.json,
 outside the run folders. Expected levels are never copied there. Each talk folder also gets
 intake.md: the user's answers at intake ("intake" in .expected.json: audience, context rubric,
-time limit), standing in for step 1 of SKILL.md.
+time limit, print size, what the call allows), standing in for step 1 of SKILL.md. --only limits
+the decks (comma-separated globs), e.g. --only "judged-poster-*,judged-low".
 
 Then, for each run folder, have an agent do step 3 ("Judge") of SKILL.md on each talk-X-pptx
-folder blind: a fresh session or subagent told to read only the skill folder and that run folder,
-and to take intake.md as the user's answers. It writes talk-X-pptx/judgments.json.
+(or poster-X-pptx) folder blind: a fresh session or subagent told to read only the skill folder and that run folder,
+and to take intake.md as the user's answers. It writes judgments.json in each folder.
 
 `check` scores every run against the expected ranges, and checks that items in "omit" (a needed
 intake fact is missing) were left out. Then it summarizes each item across runs (levels seen,
@@ -24,6 +25,7 @@ of range, or given when it should have been left out.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import random
 import re
@@ -40,13 +42,15 @@ DECKS = ROOT / ".cache" / "test-decks"
 NAMED = ("manifest.json", "outline.md", "text.json")  # files that mention the source file name
 
 
-def judged_decks() -> dict[str, tuple[Path, dict]]:
+def judged_decks(only: str | None = None) -> dict[str, tuple[Path, dict]]:
     import make_test_decks
     make_test_decks.make_all(DECKS)
     out = {}
     for exp_path in sorted(DECKS.glob("*.expected.json")):
         exp = json.loads(exp_path.read_text(encoding="utf-8"))
-        if exp.get("judged"):
+        stem = Path(exp["deck"]).stem
+        if exp.get("judged") and (only is None or any(fnmatch.fnmatch(stem, g.strip().removesuffix(".pptx"))
+                                                      for g in only.split(","))):
             out[Path(exp["deck"]).stem] = (DECKS / exp["deck"], exp)
     return out
 
@@ -64,16 +68,22 @@ def _intake_md(intake: dict) -> str:
     lines = ["# Intake", "", "The user's answers to the intake questions (step 1 of SKILL.md). They can't be",
              "asked anything more; anything not listed here was not given.", "",
              f"- Audience: {intake.get('audience', 'general')}"]
+    if intake.get("what"):
+        lines.insert(5, f"- What it is: {intake['what']}")
     if intake.get("rubric"):
         lines.append(f"- Context rubric: `{intake['rubric']}` (in the skill folder)")
+    if intake.get("print_size"):
+        lines.append(f"- Print size: {intake['print_size']}")
+    if intake.get("call"):
+        lines.append(f"- What the conference allows: {intake['call']}")
     if intake.get("time_limit_minutes"):
         lines.append(f"- Time limit: {intake['time_limit_minutes']} minutes")
     return "\n".join(lines) + "\n"
 
 
-def prepare(eval_dir: Path, runs: int, seed: int | None) -> list[Path]:
+def prepare(eval_dir: Path, runs: int, seed: int | None, only: str | None = None) -> list[Path]:
     import accessibility, color, contrast, extract_text, font_size, layout, ocr, readability, render  # noqa: E401
-    decks = judged_decks()
+    decks = judged_decks(only)
     measured = {}
     for stem, (src, exp) in decks.items():
         d = render.render(src, eval_dir / "_measured")
@@ -88,7 +98,8 @@ def prepare(eval_dir: Path, runs: int, seed: int | None) -> list[Path]:
         measured[stem] = d
     stems = list(decks)
     random.Random(seed).shuffle(stems)
-    key = {f"talk-{letter}": stem for letter, stem in zip(string.ascii_uppercase, stems)}
+    key = {f"{'poster' if decks[stem][1]['kind'] == 'poster' else 'talk'}-{letter}": stem
+           for letter, stem in zip(string.ascii_uppercase, stems)}
     (eval_dir / "key.json").write_text(json.dumps(key, indent=2), encoding="utf-8")
     dirs = []
     for r in range(1, runs + 1):
@@ -166,10 +177,11 @@ def main() -> int:
     ap.add_argument("eval_dir", nargs="?", type=Path, default=ROOT / ".cache" / "evals")
     ap.add_argument("--runs", type=int, default=3, help="copies to judge independently (prepare)")
     ap.add_argument("--seed", type=int, default=None, help="fix the deck-to-letter shuffle (prepare)")
+    ap.add_argument("--only", default=None, help='deck name globs, comma-separated, e.g. "judged-poster-*,judged-low" (prepare)')
     a = ap.parse_args()
     a.eval_dir.mkdir(parents=True, exist_ok=True)
     if a.action == "prepare":
-        for d in prepare(a.eval_dir, a.runs, a.seed):
+        for d in prepare(a.eval_dir, a.runs, a.seed, a.only):
             print(d)
         return 0
     return check(a.eval_dir)

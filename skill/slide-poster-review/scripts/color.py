@@ -15,7 +15,9 @@ CO-1  Colors that look alike with color-vision deficiency. On each page, find th
       tritanopia, Machado 2009 at severity 0.6 for moderate red-green deficiency (DaltonLens).
       Photos are left out: their colors rarely carry meaning (a red shirt on green grass). An
       image counts as a photo unless most of its pixels (80%) are in a few flat colors, as in
-      charts and diagrams pasted as pictures.
+      charts and diagrams pasted as pictures. For .pptx files, the colors of each native chart's
+      series (or of its points, for pie charts) are also read from the file and compared in
+      pairs, so thin lines and small legend keys count even when they cover little of the page.
         Level 4  no confusable pairs
         Level 3  confusable only with tritanopia (blue-yellow; about 1 in 10,000 people)
         Level 2  confusable with protanopia or deuteranopia (red-green; about 2% of men)
@@ -174,6 +176,22 @@ def palette(img: np.ndarray, skip: list = ()) -> list[dict]:
     return [{"rgb": m["rgb"], "share": m["n"] / total} for m in merged if m["n"] / total >= MIN_AREA]
 
 
+def chart_pairs(charts: list[dict]) -> list[dict]:
+    """Confusable pairs among the colours that tell one native chart's series (or points) apart."""
+    pairs = []
+    for ch in charts:
+        cols = [(c["name"], ct.hex_rgb(c["rgb"])) for c in ch.get("colors", []) if c.get("rgb")]
+        for (na, a), (nb, b) in combinations(cols, 2):
+            de = float(delta_e(a, b))
+            if de <= DISTINCT_DE:
+                continue
+            types = confusions(a, b)
+            if types:
+                pairs.append({"colors": [ct.rgb_hex(a), ct.rgb_hex(b)], "names": [na, nb], "source": "chart",
+                              "delta_e": round(de, 1), "types": types, "level": level_for(types)})
+    return sorted(pairs, key=lambda p: p["level"])
+
+
 def confusable_pairs(colors: list[dict]) -> list[dict]:
     pairs = []
     for a, b in combinations(colors, 2):
@@ -294,6 +312,7 @@ def measure(out_dir: Path, kind: str | None = None) -> Path:
     kind = kind or manifest["kind_guess"]
     doc = pymupdf.open(out_dir / manifest["pdf"])
     mpages = {p["index"]: p for p in manifest["pages"]}
+    slides_info = {s["index"]: s for s in (text.get("pptx") or {}).get("slides", [])}
     views = out_dir / "color"
     for old in views.glob("*.png") if views.exists() else []:
         old.unlink()
@@ -308,7 +327,8 @@ def measure(out_dir: Path, kind: str | None = None) -> Path:
         boxes = [(b[0] * sx, b[1] * sy, b[2] * sx, b[3] * sy)
                  for b in (info["bbox"] for info in page.get_image_info())]
         photos = [b for b in boxes if is_photo(img[max(0, int(b[1])):int(b[3]):2, max(0, int(b[0])):int(b[2]):2])]
-        pairs = confusable_pairs(palette(img, photos))
+        charts = [sh["chart"] for sh in slides_info.get(i, {}).get("shapes", []) if sh.get("chart")]
+        pairs = sorted(chart_pairs(charts) + confusable_pairs(palette(img, photos)), key=lambda x: x["level"])
         links = [tuple(l["from"]) for l in page.get_links()]
         emph = emphasis_spans(p["spans"], thin_rules(page), links)
         unit = {"page": i, "hidden": mp["hidden"],
@@ -346,8 +366,9 @@ def measure(out_dir: Path, kind: str | None = None) -> Path:
             pair = ex[iid]["pairs"][0]
             headline = (f"{n} {unit_word[n != 1]} {has} colors that look alike to people with "
                         f"{_types_text(all_types)}.")
+            named = f" (chart series {pair['names'][0]!r} and {pair['names'][1]!r})" if pair.get("names") else ""
             details = (f"For example: {_where(sorted(low, key=lambda u: u['page']), kind)}. "
-                       f"On {unit_word[0]} {ex['page']}, {pair['colors'][0]} and {pair['colors'][1]} "
+                       f"On {unit_word[0]} {ex['page']}, {pair['colors'][0]} and {pair['colors'][1]}{named} "
                        f"look alike ({', '.join(TYPES[t] for t in pair['types'])}). "
                        f"Simulated view: {ex[iid].get('view', '')}. "
                        "This matters if the colors carry meaning, e.g. in a chart or legend.")

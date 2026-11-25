@@ -117,7 +117,9 @@ judged:
 - **Colors distinguishable with color-vision deficiency** (measured). On each slide, the main
   saturated colors (each covering at least 0.4% of the page) are compared in pairs. A pair that is
   clearly different with normal vision but nearly the same in a simulation of color blindness is
-  flagged. Photos are left out: a red shirt on green grass rarely carries meaning.
+  flagged. Photos are left out: a red shirt on green grass rarely carries meaning. In a .pptx,
+  the series colors of each chart are also read from the file and compared, so thin chart lines
+  and small legend keys count too.
 
   | Level | Colors that look alike… |
   |---|---|

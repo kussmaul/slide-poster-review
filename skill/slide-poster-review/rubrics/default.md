@@ -239,8 +239,8 @@ rating records its confidence.
 - source: Tufte; Few; Cleveland & McGill (graphical perception)
 - more: references/standards.md
 - Level 4: Charts and tables have a clear message, labeled axes and units, direct labels where possible, and no 3-D or decoration that distorts data.
-- Level 3: Minor issues, e.g. a legend where direct labels would be clearer, or a missing unit.
-- Level 2: Some charts are hard to read: unlabeled axes, too many series, or a misleading scale.
+- Level 3: Minor issues, e.g. a legend where direct labels would be clearer, a missing unit, or an axis without a title when its categories or scale make clear what it measures.
+- Level 2: Some charts are hard to read: axes whose meaning can't be told, too many series, or a misleading scale.
 - Level 1: Charts are unreadable or misleading, e.g. 3-D effects, truncated axes, or text too small to read.
 
 ### CN-1 Key ideas are identifiable
