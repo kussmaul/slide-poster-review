@@ -267,16 +267,16 @@ Markdown preview (Ctrl+Shift+V) to see the tables.
 To run the pipeline by hand:
 
 ```
-python skill/slide-poster-review/scripts/render.py deck.pptx --out output
-python skill/slide-poster-review/scripts/extract_text.py output/deck-pptx
-python skill/slide-poster-review/scripts/font_size.py output/deck-pptx
-python skill/slide-poster-review/scripts/contrast.py output/deck-pptx
-python skill/slide-poster-review/scripts/color.py output/deck-pptx
-python skill/slide-poster-review/scripts/readability.py output/deck-pptx --audience general
-python skill/slide-poster-review/scripts/layout.py output/deck-pptx
+python skill/slide-poster-review/scripts/render.py        deck.pptx --out output
+python skill/slide-poster-review/scripts/extract_text.py  output/deck-pptx
+python skill/slide-poster-review/scripts/font_size.py     output/deck-pptx
+python skill/slide-poster-review/scripts/contrast.py      output/deck-pptx
+python skill/slide-poster-review/scripts/color.py         output/deck-pptx
+python skill/slide-poster-review/scripts/readability.py   output/deck-pptx --audience general
+python skill/slide-poster-review/scripts/layout.py        output/deck-pptx
 python skill/slide-poster-review/scripts/accessibility.py output/deck-pptx
 # the agent writes output/deck-pptx/judgments.json (see SKILL.md), then:
-python skill/slide-poster-review/scripts/scorecard.py output/deck-pptx
+python skill/slide-poster-review/scripts/scorecard.py     output/deck-pptx
 ```
 
 `render.py` reuses an earlier render when the input file, settings, and installed fonts are unchanged.

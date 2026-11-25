@@ -623,7 +623,7 @@ def _scores_chart(slide, colors, three_d=False, axis_min=0, labels=True, axis_ti
     data = CategoryChartData()
     data.categories = ["Section 1", "Section 2", "Section 3"]
     data.add_series("Before", (61, 58, 64))
-    data.add_series("After", (72, 70, 69))
+    data.add_series("After", (70, 67, 73))  # +9 in each section, as the title says
     ch = slide.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.8), Inches(1.7), Inches(11.7),
                                 Inches(5.5), data).chart
     ch.font.name, ch.font.size = FONT, Pt(20)
@@ -672,7 +672,7 @@ def make_judged_clear(out: Path, tmp: Path) -> dict:
             "judged": {k: [3, 4] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4")},
             "key_ideas": [["score", "quiz"],
                           ["2-minute", "two-minute", "minutes", "cheap", "cost", "low-cost"],
-                          ["talked most", "turns", "more talk", "talking more", "talk more"]]}
+                          ["talked most", "talked more", "gained more", "turns", "more talk", "talking more", "talk more"]]}
 
 
 def make_judged_poor(out: Path, tmp: Path) -> dict:
