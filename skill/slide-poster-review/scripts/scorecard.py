@@ -7,6 +7,7 @@ Reads from OUTPUT_DIR:
     manifest.json      (render.py)      notices, page counts, hidden slides
     font_size.json     (font_size.py)   measured items FS-*
     contrast.json      (contrast.py)    measured items CT-*
+    color.json         (color.py)       measured items CO-1, CO-2
     judgments.json     (the agent)      judged items, see below
 Rubric: rubrics/default.md, then each --rubric file in order. A later file overrides fields of an
 item with the same ID, adds new items, and overrides section weights by name.
@@ -32,7 +33,7 @@ from pathlib import Path
 
 SKILL = Path(__file__).resolve().parents[1]
 LEVEL_RE = re.compile(r"^Level ([1-4])$")
-MEASURE_FILES = ("font_size.json", "contrast.json")  # written by the measure scripts
+MEASURE_FILES = ("font_size.json", "contrast.json", "color.json")  # written by the measure scripts
 
 
 # ---------- rubric ----------
@@ -132,7 +133,7 @@ def collect_results(out_dir: Path, items: dict) -> tuple[dict, list, dict | None
         pages = j.get("pages") or []
         details = j.get("details") or ""
         if pages:
-            details = (details + " " if details else "") + "For example: slides " + \
+            details = (details + " " if details else "") + f"For example: slide{'s' if len(pages) > 1 else ''} " + \
                 ", ".join(map(str, pages[:5])) + "."
         results[iid] = {"level": j["level"], "confidence": j.get("confidence", "medium"),
                         "headline": j.get("headline"), "details": details or None,

@@ -50,6 +50,13 @@ Separate from the POGIL claude-skills project (review / simulate / split).
   as a visual angle: cap 21.5′ (16.7′ bold). Background excludes glyphs + 2 px; over images/gradients
   the 10th-percentile contrast is used (medium confidence).
 - **Color:** WCAG 1.4.1 (color not the only cue); color-vision simulation (DaltonLens) as supporting evidence.
+  CO-1 (measured, medium confidence): page palette of saturated colors (≥0.4% of page; photos excluded:
+  <80% of pixels in their top 8 colors); pairs with ΔE76 > 25 normally but < 10 simulated. Viénot 1999
+  protan/deutan, Brettel 1997 tritan, Machado 2009 severity 0.6. Levels: tritan only 3, red-green 2,
+  moderate red-green 1. CO-2 (measured): spans differing from their block's main color (ΔE > 20) with
+  same weight/style/size, no drawn underline; neutral-vs-neutral ignored; 3:1 lightness → 3, else 2,
+  alike in simulation → 1. CO-3 (judged): is meaning lost without color; agent uses simulated views.
+  Limitation: JPEG infographics count as photos.
 - **Readability:** CEFR vocabulary profile (free list such as CEFR-J or Oxford 3000/5000) and patterns
   (idioms, phrasal verbs, undefined acronyms, noun stacks, words per bullet), plus judgment.
   Flesch / Flesch-Kincaid and language adaptations are secondary signals only.

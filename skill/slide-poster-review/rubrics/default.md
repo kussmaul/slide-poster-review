@@ -16,7 +16,7 @@ rating records its confidence.
 |-------------|--------|--------------------------------------------|
 | Text size   | 3      | measured accessibility: weighted higher    |
 | Contrast    | 3      | measured accessibility: weighted higher    |
-| Color       | 2      | measured (planned)                         |
+| Color       | 2      | measured + judged                          |
 | Readability | 2      | measured + judged (planned)                |
 | Content     | 2      | judged                                     |
 | Format      | 1      | judged; mostly set by context rubrics (planned) |
@@ -67,7 +67,39 @@ rating records its confidence.
 - Level 2: Supporting text reaches 3:1.
 - Level 1: Supporting text is below 3:1 on more than 10% of slides.
 
+### CO-1 Colors distinguishable with color-vision deficiency
+- section: Color
+- weight: 1
+- measure: color
+- source: WCAG 2.x 1.4.1 Use of Color; Vienot et al. 1999, Brettel et al. 1997, Machado et al. 2009 (simulation)
+- more: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+- Level 4: On at least 90% of slides, no two main colors look alike with color-vision deficiency.
+- Level 3: Some colors look alike only with blue-yellow color blindness (tritanopia, about 1 in 10,000 people).
+- Level 2: On more than 10% of slides, some colors look alike with red-green color blindness (about 2% of men).
+- Level 1: On more than 10% of slides, some colors look alike even with moderate red-green deficiency (about 8% of men in all).
+
+### CO-2 Emphasis not by color alone
+- section: Color
+- weight: 1
+- measure: color
+- source: WCAG 2.x 1.4.1 Use of Color; technique G183 (3:1 lightness difference)
+- more: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+- Level 4: Emphasized words and links also differ in weight, style, size, or underline, not only in color.
+- Level 3: Some words are emphasized by color alone, but also differ in lightness from the surrounding text by 3:1 or more.
+- Level 2: On more than 10% of slides, words are emphasized by color alone with less than 3:1 lightness difference.
+- Level 1: On more than 10% of slides, words emphasized by color alone look the same as the surrounding text with color blindness.
+
 ## Judged items
+
+### CO-3 Meaning doesn't depend on color alone
+- section: Color
+- weight: 2
+- source: WCAG 2.x 1.4.1 Use of Color
+- more: https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
+- Level 4: Every chart, legend, diagram, and highlight that uses color also uses labels, patterns, shapes, or position; nothing is lost in grayscale or simulation.
+- Level 3: One or two places rely on color, but the meaning is also stated in nearby text.
+- Level 2: Some charts or legends can only be read by color, e.g. series told apart only by a color key.
+- Level 1: Key content depends on color alone, e.g. "the red items are…", or results shown only as colored cells.
 
 ### CN-1 Key ideas are identifiable
 - section: Content

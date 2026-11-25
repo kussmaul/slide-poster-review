@@ -1,9 +1,9 @@
 ---
 name: slide-poster-review
-description: Reviews slide decks and posters (PPTX, Google Slides exports, PDF) against accessibility and presentation rubrics and produces a scorecard with a ranked issue list. Measures text size by viewing distance and text contrast (WCAG), including text inside images (OCR), and rates whether key ideas are identifiable; color and readability checks are planned. Use when the user asks to review, check, critique, or score slides, a presentation, a deck, or a poster.
-compatibility: Requires Python 3.10+ with pymupdf, python-pptx, and fonttools (requirements.txt). Rendering .pptx needs PowerPoint (Windows) or LibreOffice; without either, accepts PDF exports only. OCR uses Windows' built-in engine; elsewhere it is skipped with a notice.
+description: Reviews slide decks and posters (PPTX, Google Slides exports, PDF) against accessibility and presentation rubrics and produces a scorecard with a ranked issue list. Measures text size by viewing distance and text contrast (WCAG), including text inside images (OCR), and colors that look alike with color blindness or carry meaning alone; rates whether key ideas are identifiable. Readability checks are planned. Use when the user asks to review, check, critique, or score slides, a presentation, a deck, or a poster.
+compatibility: Requires Python 3.10+ with pymupdf, python-pptx, fonttools, numpy, and daltonlens (requirements.txt). Rendering .pptx needs PowerPoint (Windows) or LibreOffice; without either, accepts PDF exports only. OCR uses Windows' built-in engine; elsewhere it is skipped with a notice.
 metadata:
-  status: "early version: text size, contrast, key ideas"
+  status: "early version: text size, contrast, color, key ideas"
 ---
 
 # Slide & poster review
@@ -36,6 +36,7 @@ python scripts/extract_text.py OUTPUT_DIR           # text.json, outline.md
 python scripts/ocr.py OUTPUT_DIR                    # text in images/shapes (Windows; skipped elsewhere)
 python scripts/font_size.py OUTPUT_DIR [--print-size 48x36in] [--preset NAME]
 python scripts/contrast.py OUTPUT_DIR  [--print-size 48x36in] [--preset NAME]   # same options
+python scripts/color.py OUTPUT_DIR                  # color blindness, color-only emphasis
 ```
 
 - If `render.py` fails (exit code 2 or 3), tell the user its message. It explains what to do,
@@ -65,8 +66,16 @@ any context rubric. For each one:
  "items": [{"id": "CN-1", "level": 3, "confidence": "medium",
             "headline": "One sentence describing the issue, not a fix.",
             "details": "Optional second sentence with specifics.",
-            "pages": [4, 9, 12]}]}
+            "pages": [4, 9, 12]},
+           {"id": "CO-3", "level": 2, "confidence": "medium", "headline": "...", "pages": [7]}]}
 ```
+
+**Color (for CO-3).** Look at the pages listed in `color.json` findings (CO-1, CO-2) and at
+their simulated views in `OUTPUT_DIR/color/` (e.g. `p003-deutan.png`, how the page looks with
+red-green color blindness). Also look at slides with charts, legends, or colored tables or
+highlights. Ask: is anything lost if color can't be seen? A legend whose entries are also
+labeled, or a highlight that is also bold, loses nothing. CO-1 flags colors that look alike;
+only judgment can say whether they carry meaning. Photos are not checked.
 
 Describe what is wrong, not how to fix it: "The conclusion slide lists topics rather than
 findings", not "Change the conclusion to say…".

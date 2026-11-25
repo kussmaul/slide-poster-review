@@ -391,7 +391,7 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
             headline = (f"{n_low} {unit_word[n_low != 1]} {'has' if n_low == 1 else 'have'} "
                         f"{label} smaller than comfortable reading size (about {comfy_pt:.0f} pt "
                         f"in this {'deck' if kind == 'slides' else 'poster'}).")
-            examples = ("slides " if kind == "slides" else "") + ", ".join(sample)
+            examples = (("slide " if len(sample) == 1 else "slides ") if kind == "slides" else "") + ", ".join(sample)
             size = (f"about {worst['size_pt']:g} pt, text in an image or shape" if worst.get("ocr")
                     else f"{worst['size_pt']:g} pt {worst['font']}")
             details = (f"Smallest text is in {what}. For example: {examples}. Smallest: "

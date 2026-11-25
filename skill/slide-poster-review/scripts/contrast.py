@@ -295,7 +295,7 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
         headline = (f"{n_low} {unit_word[n_low != 1]} {'has' if n_low == 1 else 'have'} {label} "
                     f"with contrast below 4.5:1 (3:1 for large text).")
         details = (f"Lowest contrast is in {what}. For example: "
-                   f"{'slides ' if kind == 'slides' else ''}{', '.join(sample)}. Lowest: "
+                   f"{('slide ' if len(sample) == 1 else 'slides ') if kind == 'slides' else ''}{', '.join(sample)}. Lowest: "
                    + (f"about {show_ratio(worst['ratio'])}, text in an image or shape" if worst.get("ocr")
                       else f"{show_ratio(worst['ratio'])}, {worst['fg']} on {worst['bg']}")
                    + f" (\"{worst['text'][:40]}\").")

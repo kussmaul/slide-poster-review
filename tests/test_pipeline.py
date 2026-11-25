@@ -3,17 +3,22 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skill" / "slide-poster-review"
 sys.path.insert(0, str(SKILL / "scripts"))
+import color  # noqa: E402
 import contrast  # noqa: E402
 import extract_text  # noqa: E402
 import font_size  # noqa: E402
 import ocr  # noqa: E402
 import scorecard  # noqa: E402
 import render  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "tools"))
+import make_test_decks  # noqa: E402
 
 INPUTS = ROOT / "test-inputs"
 # Renders persist here between test runs (render.py reuses them when inputs are unchanged).
@@ -471,3 +476,110 @@ def test_image_text_measured(ael_pptx):
     c = load(contrast.measure(ael_pptx).parent, "contrast.json")
     c79 = next(u for u in c["units"] if u["page"] == 79)["body"]["worst"]
     assert c79.get("ocr") and c79["level"] == 1  # white heading on bright cyan
+
+
+# ---------- color ----------
+
+def test_color_math():
+    assert float(color.delta_e([0, 0, 0], [255, 255, 255])) == pytest.approx(100, abs=0.1)
+    assert color.confusions([0xc0, 0x50, 0x40], [0x60, 0x90, 0x40]) == ["deutan"]
+    assert color.confusions([0x00, 0x72, 0xb2], [0xe6, 0x9f, 0x00]) == []  # Okabe-Ito
+    assert color.confusions([0x66, 0xaa, 0xdd], [0x77, 0xbb, 0x99]) == ["tritan"]
+    assert color.level_for([]) == 4 and color.level_for(["tritan"]) == 3
+    assert color.level_for(["deutan", "tritan"]) == 2 and color.level_for(["deutan-moderate"]) == 1
+
+
+def test_photo_vs_graphic():
+    rng = np.random.default_rng(0)
+    photo = rng.integers(0, 256, (200, 200, 3))
+    graphic = np.full((200, 200, 3), 255)
+    graphic[50:150, 20:80] = (0xc0, 0x50, 0x40)
+    graphic[50:150, 120:180] = (0x60, 0x90, 0x40)
+    assert color.is_photo(photo) and not color.is_photo(graphic)
+    pal = color.palette(graphic)
+    assert len(pal) == 2 and color.confusable_pairs(pal)[0]["types"] == ["deutan"]
+    assert color.palette(graphic, skip=[(0, 0, 200, 200)]) == []
+
+
+def _span(t, c, x0, bold=False, block=0, line=0):
+    return {"text": t, "color": c, "font": "ArialMT", "size_pt": 32, "bold": bold, "italic": False,
+            "bbox": [x0, 100, x0 + 20 * len(t), 132], "origin": [x0, 125], "dir": [1.0, 0.0],
+            "block": block, "line": line}
+
+
+def test_emphasis_spans():
+    line = [_span("The result ", "#000000", 0), _span("improved", "#c00000", 220),
+            _span(" for every group.", "#000000", 380)]
+    [e] = color.emphasis_spans(line, [], [])
+    assert e["text"] == "improved" and e["level"] == 3 and not e["link"]
+    assert color.emphasis_spans(line, [(220, 128, 380, 130)], []) == []          # underlined
+    assert color.emphasis_spans(line, [], [(200, 90, 400, 140)])[0]["link"]      # link
+    line[1]["bold"] = True
+    assert color.emphasis_spans(line, [], []) == []                              # bold too
+    grey = [_span("The result ", "#000000", 0), _span("improved", "#555555", 220)]
+    assert color.emphasis_spans(grey, [], []) == []                              # not a color cue
+    brown = [_span("The result ", "#634c30", 0), _span("improved", "#3c693c", 220),
+             _span(" for every group.", "#634c30", 380)]
+    assert color.emphasis_spans(brown, [], [])[0]["level"] == 1
+
+
+# ---------- generated decks with known flaws ----------
+
+DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx"]
+
+
+@pytest.fixture(scope="module")
+def generated(tmp_path_factory):
+    if not (render._powerpoint_available() or render._find_soffice()):
+        pytest.skip("no PPTX renderer")
+    src = ROOT / ".cache" / "test-decks"
+    make_test_decks.make_all(src)  # reproducible bytes, so renders below are cached
+    out = {}
+    for name in DECKS:
+        d = render.render(src / name, CACHE)
+        extract_text.extract(d)
+        ocr.run(d)
+        font_size.measure(d)
+        contrast.measure(d)
+        color.measure(d)
+        out[name] = (d, json.loads((src / name).with_suffix(".expected.json").read_text(encoding="utf-8")))
+    return out
+
+
+@pytest.mark.parametrize("name", DECKS)
+def test_generated_deck_levels(generated, name):
+    d, exp = generated[name]
+    text = load(d, "text.json")
+    res = {m: load(d, f"{m}.json") for m in ("font_size", "contrast", "color")}
+    wrong = []
+    for e in exp["expect"]:
+        units = [u for u in res[e["measure"]]["units"] if u["page"] == e["page"]]
+        if e.get("marker"):
+            blocks = {s["block"] for s in text["pages"][e["page"] - 1]["spans"] if e["marker"] in s["text"]}
+            units = [u for u in units if u.get("block") in blocks]
+        levels = [u[e["key"]]["level"] for u in units if e["key"] in u]
+        got = min(levels) if levels else None
+        if "level" in e:
+            ok = got == e["level"]
+        else:  # OCR-dependent: just found, at or below max_level (skipped without OCR)
+            ok = got is not None and got <= e["max_level"] or not ocr.ocr_available()
+        if not ok:
+            wrong.append(f"page {e['page']} {e.get('marker') or ''} {e['measure']} {e['key']}: "
+                         f"want {e.get('level', e.get('max_level'))}, got {got} ({e['note']})")
+    assert not wrong, "\n".join(wrong)
+    for m in res.values():  # hidden slides are never in findings
+        for f in m["findings"]:
+            assert not set(exp["hidden"]) & {u if isinstance(u, int) else u[0] for u in f["units"]}
+
+
+def test_color_views_and_scorecard(generated):
+    d, _ = generated["flaws-color.pptx"]
+    c = load(d, "color.json")
+    views = sorted(p.name for p in (d / "color").glob("*.png"))
+    assert views == ["p003-deutan.png", "p004-deutan.png", "p005-tritan.png"]  # not hidden p012
+    co1 = next(f for f in c["findings"] if f["id"] == "CO-1")
+    assert "red-green or blue-yellow color blindness" in co1["headline"] and "color/p004-deutan.png" in co1["details"]
+    sc = json.loads(Path(scorecard.build(d)).with_suffix(".json").read_text(encoding="utf-8"))
+    names = {i["name"] for i in sc["issues"]}
+    assert {"Colors distinguishable with color-vision deficiency", "Emphasis not by color alone"} <= names
+    assert "Meaning doesn't depend on color alone" in {i["name"] for i in sc["not_assessed_items"]}

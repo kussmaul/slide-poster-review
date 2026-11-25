@@ -4,9 +4,10 @@ An [Agent Skill](https://agentskills.io) that reviews slide decks and posters ag
 produces a scorecard. It measures text size, contrast, color use, and readability, and adds judged
 items such as format and content. It reports issues but never rewrites your content.
 
-**Status:** early version. It rates text size and text contrast, including text inside images
-(measured), and whether key ideas are identifiable (judged by the agent), and produces a scorecard.
-Color and readability are next (see [QUEUE.md](QUEUE.md)).
+**Status:** early version. It rates text size, text contrast (including text inside images), and
+use of color (measured), plus whether key ideas are identifiable and whether meaning depends on
+color alone (judged by the agent), and produces a scorecard. Readability is next (see
+[QUEUE.md](QUEUE.md)).
 
 ## What you can give it
 
@@ -103,6 +104,40 @@ sampled from the rendered page. It ranges from 1:1 (invisible) to 21:1 (black on
 - **Scoring.** As for text size, each slide is rated by its worst text, and the deck gets the level
   that 90% of slides reach. Body and supporting text are separate items.
 
+## How color is rated
+
+About 8% of men and 0.5% of women have some color-vision deficiency, mostly red-green. WCAG 1.4.1
+asks that color never be the *only* way to convey information. Two items are measured and one is
+judged:
+
+- **Colors distinguishable with color-vision deficiency** (measured). On each slide, the main
+  saturated colors (each covering at least 0.4% of the page) are compared in pairs. A pair that is
+  clearly different with normal vision but nearly the same in a simulation of color blindness is
+  flagged. Photos are left out: a red shirt on green grass rarely carries meaning.
+
+  | Level | Colors that look alike… |
+  |---|---|
+  | Level 4 | none |
+  | Level 3 | only with blue-yellow color blindness (tritanopia, about 1 in 10,000) |
+  | Level 2 | with red-green color blindness (protanopia, deuteranopia: about 2% of men) |
+  | Level 1 | even with moderate red-green deficiency (most of the other 6% of affected men) |
+
+  This finds where color *could* be the only cue, so it is medium confidence. For each flagged
+  slide, a simulated view is saved (e.g. `color/p003-deutan.png`).
+- **Emphasis not by color alone** (measured). Words whose color differs from the rest of their text
+  block, with no other cue: same weight, style, and size, not underlined. Links count too. Black vs.
+  grey is a lightness difference, not a color cue, and isn't counted. Level 3 if the words still
+  differ in lightness by 3:1 or more (WCAG technique G183), Level 2 if less, Level 1 if they look
+  the same as the surrounding text with color blindness.
+- **Meaning doesn't depend on color alone** (judged). The agent looks at the flagged slides, their
+  simulated views, and any charts or legends, and rates whether anything is lost without color,
+  e.g. chart series told apart only by a color key.
+
+Simulation uses [DaltonLens](https://github.com/DaltonLens/DaltonLens-Python) (MIT): Viénot 1999 for
+protanopia and deuteranopia, Brettel 1997 for tritanopia, and Machado 2009 at severity 0.6 for
+moderate deficiency. Color differences are CIELAB ΔE: "clearly different" is more than 25, "nearly
+the same" less than 10.
+
 ## The scorecard
 
 - The scorecard has a summary row for each **section** (e.g. "Text size: 1.8 of 4"), the weighted
@@ -147,7 +182,16 @@ To review everything in `test-inputs/` and read the results as rendered Markdown
 .venv/Scripts/python tools/review_test_inputs.py   # scorecards -> test-outputs/*.md, index.md
 ```
 
-Intermediate files (PDF, page images, JSON) go to `.cache/work/`. Open a scorecard in VS Code's
+Intermediate files (PDF, page images, JSON) go to `.cache/work/`.
+
+Decks with known flaws come from a generator; each has an `.expected.json` with the level every
+flaw should get, which the tests check:
+
+```
+.venv/Scripts/python tools/make_test_decks.py     # -> test-inputs/generated/flaws-{slides,poster,color}.pptx
+```
+
+`review_test_inputs.py` includes `test-inputs/generated/` if it exists. Open a scorecard in VS Code's
 Markdown preview (Ctrl+Shift+V) to see the tables.
 
 To run the pipeline by hand:
@@ -156,6 +200,8 @@ To run the pipeline by hand:
 python skill/slide-poster-review/scripts/render.py deck.pptx --out output
 python skill/slide-poster-review/scripts/extract_text.py output/deck-pptx
 python skill/slide-poster-review/scripts/font_size.py output/deck-pptx
+python skill/slide-poster-review/scripts/contrast.py output/deck-pptx
+python skill/slide-poster-review/scripts/color.py output/deck-pptx
 # the agent writes output/deck-pptx/judgments.json (see SKILL.md), then:
 python skill/slide-poster-review/scripts/scorecard.py output/deck-pptx
 ```

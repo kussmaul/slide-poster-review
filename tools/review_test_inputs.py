@@ -3,6 +3,8 @@
 Usage:
     python tools/review_test_inputs.py [--force]
 
+Includes test-inputs/generated/ (from tools/make_test_decks.py) if present.
+
 Intermediate files (PDF, page images, JSON) go to .cache/work/<name>-<ext>/ and are reused
 when inputs are unchanged. test-outputs/ gets one <input file name>.md per input (the scorecard,
 or the error message if the file can't be reviewed) plus index.md. Judged items are only
@@ -17,6 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skill" / "slide-poster-review" / "scripts"))
+import color  # noqa: E402
 import contrast  # noqa: E402
 import extract_text  # noqa: E402
 import font_size  # noqa: E402
@@ -40,6 +43,7 @@ def review(src: Path, force: bool) -> tuple[str, str]:
     ocr.run(d)
     font_size.measure(d)
     contrast.measure(d)
+    color.measure(d)
     md = scorecard.build(d).read_text(encoding="utf-8")
     sc = json.loads((d / "scorecard.json").read_text(encoding="utf-8"))
     return md, f"{sc['overall']:.1f} of 4 ({sc['items_assessed']} of {sc['items_total']} items)"
@@ -51,7 +55,8 @@ def main() -> int:
     a = ap.parse_args()
     OUTPUTS.mkdir(exist_ok=True)
     rows = []
-    for src in sorted(p for p in INPUTS.iterdir() if p.suffix.lower() in TYPES):
+    srcs = [p for d in (INPUTS, INPUTS / "generated") if d.exists() for p in d.iterdir()]
+    for src in sorted(p for p in srcs if p.suffix.lower() in TYPES):
         md, status = review(src, a.force)
         out = OUTPUTS / f"{src.name}.md"
         out.write_text(md, encoding="utf-8")
