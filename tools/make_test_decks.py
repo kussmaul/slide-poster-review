@@ -27,8 +27,10 @@ expected.json: {"deck", "kind", "expect": [...]}, each expectation
     "items" (optional): {item id: level} for deck-level items, e.g. RD-1, RD-3, AC-1.
 "print_size" (optional): passed to font_size and contrast, as the user would give it.
 "judged" (optional): {item id: [lowest, highest] acceptable level} for the agent's judgments,
-and "key_ideas": one keyword list per key idea (a stated key idea matches if it contains any
-keyword). Checked by tools/eval_judgments.py, not by the tests.
+"key_ideas": one keyword list per key idea (a stated key idea matches if it contains any
+keyword), "intake": the user's answers at intake (context rubric, time limit), and "omit": items
+the agent must leave out because an intake fact is missing. Checked by tools/eval_judgments.py,
+not by the tests.
 "level" is exact; "max_level" means "this flaw is found" where the exact level depends on
 rendering (e.g. OCR). Hidden slides are listed under "hidden" and must not be scored.
 
@@ -620,6 +622,10 @@ def make_poster_half(out: Path, tmp: Path) -> dict:
 
 
 # ---------- judged decks: the same short talk, done well and done badly ----------
+# All three are judged with the course-presentation example rubric (FM-1 required slides,
+# FM-2 citations on the slide, FM-3 slides per minute).
+
+COURSE_RUBRIC = "rubrics/examples/course-presentation.md"
 
 def _make_3d(ch) -> None:
     """Turn a 2-D clustered column chart into a 3-D one (python-pptx can't write 3-D charts)."""
@@ -675,12 +681,15 @@ def make_judged_clear(out: Path, tmp: Path) -> dict:
     prs = slides_prs()
     s = prs.slides.add_slide(prs.slide_layouts[0])
     s.shapes.title.text = "Short pair discussions raise quiz scores in large classes"
-    s.placeholders[1].text = "A one-semester study in three lecture sections"
+    s.placeholders[1].text = "Ana Ruiz and Ben Okafor · Teaching seminar · 12 March 2026"
+    _titled_layout(prs, "Outline", ["The problem", "What we tried", "What we found", "Summary"],
+                   body_size=32)  # FM-1: every required slide; FM-2: sources cited on the slide
     _titled_layout(prs, "Many students in large lectures fall behind",
-                   ["Few students ask questions", "Quiz scores vary a lot", "We wanted a cheap fix"], body_size=32)
+                   ["Few students ask questions (Lee & Park, 2019)", "Quiz scores vary a lot",
+                    "We wanted a cheap fix"], body_size=32)
     _titled_layout(prs, "We added three 2-minute pair talks to each lecture",
-                   ["The teacher asks a question", "Pairs talk for 2 minutes", "A few pairs report back"],
-                   body_size=32)
+                   ["The teacher asks a question (as in Mazur, 1997)", "Pairs talk for 2 minutes",
+                    "A few pairs report back"], body_size=32)
     s = _titled_layout(prs, "Quiz scores rose by about 9 points in every section")
     _scores_chart(s, ["#0072b2", "#e69f00"])
     _titled_layout(prs, "Students who talked most gained most",
@@ -689,9 +698,16 @@ def make_judged_clear(out: Path, tmp: Path) -> dict:
     _titled_layout(prs, "Summary: three things to remember",
                    ["Short pair talks raised quiz scores", "They cost about 6 minutes per lecture",
                     "Talking more went with learning more"], body_size=32)
+    _titled_layout(prs, "References", [
+        "Lee, J., & Park, S. (2019). Who asks questions in large lectures? Journal of College "
+        "Teaching, 12(3), 45-58.",
+        "Mazur, E. (1997). Peer Instruction: A User's Manual. Prentice Hall."], body_size=24)
+    _titled_layout(prs, "Questions?", ["Ana Ruiz: aruiz@example.edu", "Ben Okafor: bokafor@example.edu"],
+                   body_size=32)
     save(prs, out / "judged-clear.pptx")
     return {"deck": "judged-clear.pptx", "kind": "slides", "hidden": [], "expect": [],
-            "judged": {k: [3, 4] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4")},
+            "intake": {"rubric": COURSE_RUBRIC, "time_limit_minutes": 10},  # FM-3: 6 content slides
+            "judged": {k: [3, 4] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4", "FM-1", "FM-2", "FM-3")},
             "key_ideas": [["score", "quiz"],
                           ["2-minute", "two-minute", "minutes", "cheap", "cost", "low-cost"],
                           ["talked most", "talked more", "gained more", "turns", "more talk", "talking more", "talk more"]]}
@@ -707,8 +723,9 @@ def make_judged_poor(out: Path, tmp: Path) -> dict:
         "high-enrollment STEM gateway course contexts moves the needle on student learning outcome "
         "assessment data, as the literature has long touched on, although the jury is still out on "
         "transfer, so we decided to take a stab at it and see whether it would pan out in our "
-        "departmental ecosystem going forward, notwithstanding the usual institutional headwinds."],
-        body_size=24)
+        "departmental ecosystem going forward, notwithstanding the usual institutional headwinds.",
+        "\"Students learn more when they talk than when they listen\" (a well-known study)"],
+        body_size=24)  # FM-2: literature and a quotation, never cited
     _titled_layout(prs, "Methods", [
         "Three sections (n = 412) in Room 101, Room 220 and the annex", "IRB protocol 2026-117, exempt",
         "TPS x3 per lecture, ~2 min, clicker Qs from the publisher bank",
@@ -727,9 +744,11 @@ def make_judged_poor(out: Path, tmp: Path) -> dict:
         b.line.fill.background()
     _titled_layout(prs, "Other", ["Low-hanging fruit: ballpark the ROI on TA FTEs",
                                   "Circle back re: LMS analytics", "Questions?"], body_size=28)
+    # FM-1: no names or date, outline, conclusion, or references; FM-3: 5 content slides in 3 minutes
     save(prs, out / "judged-poor.pptx")
     return {"deck": "judged-poor.pptx", "kind": "slides", "hidden": [], "expect": [],
-            "judged": {k: [1, 2] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4")}}
+            "intake": {"rubric": COURSE_RUBRIC, "time_limit_minutes": 3},
+            "judged": {k: [1, 2] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4", "FM-1", "FM-2", "FM-3")}}
 
 
 def make_judged_middle(out: Path, tmp: Path) -> dict:
@@ -737,7 +756,7 @@ def make_judged_middle(out: Path, tmp: Path) -> dict:
     prs = slides_prs()
     s = prs.slides.add_slide(prs.slide_layouts[0])
     s.shapes.title.text = "Weekly Quizzes Project"  # CN-1: topic titles throughout...
-    s.placeholders[1].text = "Spring report"
+    s.placeholders[1].text = "Dana Cole and Lee Wu · Spring report · 14 April 2026"
     _titled_layout(prs, "Background", [  # RD-4: a few idioms, phrasal verbs, an undefined term
         "Many students cram the night before an exam",
         "Retrieval practice is known to help long-term memory",
@@ -780,9 +799,15 @@ def make_judged_middle(out: Path, tmp: Path) -> dict:
         "Weekly quizzes went with higher unit exam scores",
         "The quizzes took students about 10 minutes a week",
         "Next: try weekly quizzes in other courses"], body_size=32)
+    _titled_layout(prs, "References", [  # FM-2: listed here, but not cited on the Background slide
+        "Roediger, H. L., & Karpicke, J. D. (2006). Test-enhanced learning: Taking memory tests "
+        "improves long-term retention. Psychological Science, 17(3), 249-255."], body_size=24)
+    # FM-1: no outline and no questions slide (two missing: Level 2); FM-3: no time limit given
     save(prs, out / "judged-middle.pptx")
     return {"deck": "judged-middle.pptx", "kind": "slides", "hidden": [], "expect": [],
-            "judged": {k: [2, 3] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4")},
+            "intake": {"rubric": COURSE_RUBRIC},
+            "judged": {k: [2, 3] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4", "FM-1", "FM-2")},
+            "omit": ["FM-3"],
             "key_ideas": [["higher", "scored", "scores", "better"],
                           ["10 minutes", "ten minutes", "little time", "cheap", "low cost", "low-cost"]]}
 

@@ -8,15 +8,18 @@ EVAL_DIR defaults to .cache/evals/. `prepare` regenerates the decks (tools/make_
 runs the measuring scripts on every deck with "judged" levels in its .expected.json, then copies
 the results into EVAL_DIR/run1 .. runN, renamed talk-A, talk-B, ... in a shuffled order so that
 neither folder names nor paths reveal which deck is which. The mapping goes to EVAL_DIR/key.json,
-outside the run folders. Expected levels are never copied there.
+outside the run folders. Expected levels are never copied there. Each talk folder also gets
+intake.md: the user's answers at intake ("intake" in .expected.json: audience, context rubric,
+time limit), standing in for step 1 of SKILL.md.
 
 Then, for each run folder, have an agent do step 3 ("Judge") of SKILL.md on each talk-X-pptx
-folder blind: a fresh session or subagent told to read only the skill folder and that run folder.
-It writes talk-X-pptx/judgments.json.
+folder blind: a fresh session or subagent told to read only the skill folder and that run folder,
+and to take intake.md as the user's answers. It writes talk-X-pptx/judgments.json.
 
-`check` scores every run against the expected ranges, then summarizes each item across runs
-(levels seen, share in range), and writes EVAL_DIR/eval-report.md. Exit code 1 if any judgment
-is missing or out of range.
+`check` scores every run against the expected ranges, and checks that items in "omit" (a needed
+intake fact is missing) were left out. Then it summarizes each item across runs (levels seen,
+share in range) and writes EVAL_DIR/eval-report.md. Exit code 1 if any judgment is missing, out
+of range, or given when it should have been left out.
 """
 from __future__ import annotations
 
@@ -57,6 +60,17 @@ def _anonymize(d: Path, stem: str, alias: str) -> None:
             p.write_text(s.replace(stem, alias), encoding="utf-8")
 
 
+def _intake_md(intake: dict) -> str:
+    lines = ["# Intake", "", "The user's answers to the intake questions (step 1 of SKILL.md). They can't be",
+             "asked anything more; anything not listed here was not given.", "",
+             f"- Audience: {intake.get('audience', 'general')}"]
+    if intake.get("rubric"):
+        lines.append(f"- Context rubric: `{intake['rubric']}` (in the skill folder)")
+    if intake.get("time_limit_minutes"):
+        lines.append(f"- Time limit: {intake['time_limit_minutes']} minutes")
+    return "\n".join(lines) + "\n"
+
+
 def prepare(eval_dir: Path, runs: int, seed: int | None) -> list[Path]:
     import accessibility, color, contrast, extract_text, font_size, layout, ocr, readability, render  # noqa: E401
     decks = judged_decks()
@@ -85,6 +99,7 @@ def prepare(eval_dir: Path, runs: int, seed: int | None) -> list[Path]:
             d = run / f"{alias}-pptx"
             shutil.copytree(measured[stem], d)
             _anonymize(d, stem, alias)
+            (d / "intake.md").write_text(_intake_md(decks[stem][1].get("intake", {})), encoding="utf-8")
             dirs.append(d)
     return dirs
 
@@ -113,6 +128,13 @@ def check(eval_dir: Path) -> int:
                 across.setdefault((stem, iid), []).append(lvl)
                 lines.append(f"| {stem} | {iid} | {lvl if lvl is not None else '(missing)'} | {lo}-{hi} | "
                              f"{it.get('confidence', '')} | {'pass' if ok else 'FAIL'} |")
+            for iid in exp.get("omit", []):
+                lvl = got.get(iid, {}).get("level")
+                ok = iid not in got
+                total, passed = total + 1, passed + ok
+                across.setdefault((stem, iid), []).append(lvl)
+                lines.append(f"| {stem} | {iid} | {'(left out)' if ok else lvl} | left out | "
+                             f"{got.get(iid, {}).get('confidence', '')} | {'pass' if ok else 'FAIL'} |")
             if exp.get("key_ideas"):
                 stated = [k.lower() for k in j.get("key_ideas", [])]
                 hits = sum(any(w.lower() in k for k in stated for w in words) for words in exp["key_ideas"])
@@ -125,9 +147,12 @@ def check(eval_dir: Path) -> int:
                f"({len(runs)} runs, decks anonymized as {', '.join(f'{a} = {s}' for a, s in key.items())}).", "",
                "| Deck | Item | Expected | Levels by run | In range |", "|---|---|---|---|---|"]
     for (stem, iid), lvls in sorted(across.items()):
-        lo, hi = decks[stem][1]["judged"][iid]
-        ok = sum(v is not None and lo <= v <= hi for v in lvls)
-        summary.append(f"| {stem} | {iid} | {lo}-{hi} | {', '.join('-' if v is None else str(v) for v in lvls)} "
+        if iid in decks[stem][1].get("judged", {}):
+            lo, hi = decks[stem][1]["judged"][iid]
+            ok, want = sum(v is not None and lo <= v <= hi for v in lvls), f"{lo}-{hi}"
+        else:  # "omit": a level means the item was judged without the needed fact
+            ok, want = sum(v is None for v in lvls), "left out"
+        summary.append(f"| {stem} | {iid} | {want} | {', '.join('-' if v is None else str(v) for v in lvls)} "
                        f"| {ok} of {len(lvls)} |")
     report = "\n".join(summary + [""] + lines) + "\n"
     (eval_dir / "eval-report.md").write_text(report, encoding="utf-8")
