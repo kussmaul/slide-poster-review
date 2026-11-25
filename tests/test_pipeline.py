@@ -14,6 +14,7 @@ import contrast  # noqa: E402
 import extract_text  # noqa: E402
 import font_size  # noqa: E402
 import ocr  # noqa: E402
+import readability  # noqa: E402
 import scorecard  # noqa: E402
 import render  # noqa: E402
 
@@ -227,7 +228,8 @@ def _without_ocr(src, tmp_path):
     import shutil
     d = tmp_path / src.name
     shutil.copytree(src, d)
-    for f in ("ocr.json", "font_size.json", "contrast.json", "scorecard.md", "scorecard.json"):
+    for f in ("ocr.json", "font_size.json", "contrast.json", "color.json", "readability.json",
+              "scorecard.md", "scorecard.json"):
         (d / f).unlink(missing_ok=True)
     return d
 
@@ -523,9 +525,59 @@ def test_emphasis_spans():
     assert color.emphasis_spans(brown, [], [])[0]["level"] == 1
 
 
+# ---------- readability ----------
+
+def test_readability_word_lookup():
+    words, _ = readability.load_wordlist()
+    lv = lambda w: readability.lookup(w, words)  # noqa: E731
+    assert lv("teachers") == lv("teacher") == 0 and lv("stopped") == lv("stop")
+    assert lv("children") == lv("child") and lv("studies") == lv("study")
+    assert lv("don't") == lv("don’t") == lv("do") and lv("can't") == lv("can")
+    assert lv("pre-test") == lv("test") and lv("according") is not None  # from "according to"
+    assert lv("ubiquitous") is None and lv("etc") is not None
+    assert "TV" in readability.LIST_ACRONYMS
+
+
+def test_readability_tokens_and_sentences():
+    toks = readability.tokens("Email clif@example.org or see www.example.org on the 4th day, LLMs & ICAP")
+    assert toks == ["Email", "or", "see", "on", "the", "4th", "day", "LLMs", "ICAP"]
+    assert readability.sentences("One idea. Two ideas: three; four") == ["One idea.", "Two ideas:", "three;", "four"]
+    assert readability._title_case(readability.tokens("Challenges for Instructors and Students"))
+    assert not readability._title_case(readability.tokens("Students also face challenges today"))
+
+
+def test_readability_acronym_definitions():
+    text = ("Think-Pair-Share (TPS) and Peer Instruction (PI). ICAP (Interactive, Constructive, Active, "
+            "Passive). Large language models (LLMs). POGIL: Process Oriented Guided Inquiry Learning. "
+            "Use the XQZ (a tool).")
+    assert readability.defined_acronyms(text) == {"TPS", "PI", "ICAP", "LLM", "POGIL"}
+
+
+def test_readability_segments_join_wrapped_lines():
+    def sp(t, block, line, x=50):
+        return {"text": t, "size_pt": 32, "bbox": [x, 100 + 40 * line, x + 20 * len(t), 132 + 40 * line],
+                "block": block, "line": line, "role": "body", "kind": "bullet"}
+    page = {"spans": [sp("• Students read the text and", 0, 0), sp("write the main idea", 0, 1),
+                      sp("• Then share", 0, 2), sp("● one ● two", 1, 0)]}
+    segs = [s["text"] for s in readability.segments(page)]
+    assert segs == ["Students read the text and write the main idea", "Then share", "one", "two"]
+
+
+def test_readability_real_deck(ael_pptx):
+    readability.measure(ael_pptx)
+    r = load(ael_pptx, "readability.json")
+    assert r["items"]["RD-1"]["level"] in (2, 3, 4) and 0.9 < r["items"]["RD-1"]["coverage"] < 1
+    acr = {a["acronym"]: a["defined"] for a in r["hints"]["acronyms"]}
+    assert acr.get("TPS") is True and "AND" not in acr
+    hidden = {p["index"] for p in load(ael_pptx, "manifest.json")["pages"] if p["hidden"]}
+    for f in r["findings"]:
+        assert not hidden & set(f["units"])
+    assert "flesch" in r["signals"] and "flesch_kincaid_grade" in r["signals"]
+
+
 # ---------- generated decks with known flaws ----------
 
-DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx"]
+DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx", "flaws-text.pptx"]
 
 
 @pytest.fixture(scope="module")
@@ -542,6 +594,7 @@ def generated(tmp_path_factory):
         font_size.measure(d)
         contrast.measure(d)
         color.measure(d)
+        readability.measure(d)
         out[name] = (d, json.loads((src / name).with_suffix(".expected.json").read_text(encoding="utf-8")))
     return out
 
@@ -550,7 +603,7 @@ def generated(tmp_path_factory):
 def test_generated_deck_levels(generated, name):
     d, exp = generated[name]
     text = load(d, "text.json")
-    res = {m: load(d, f"{m}.json") for m in ("font_size", "contrast", "color")}
+    res = {m: load(d, f"{m}.json") for m in ("font_size", "contrast", "color", "readability")}
     wrong = []
     for e in exp["expect"]:
         units = [u for u in res[e["measure"]]["units"] if u["page"] == e["page"]]
@@ -566,6 +619,10 @@ def test_generated_deck_levels(generated, name):
         if not ok:
             wrong.append(f"page {e['page']} {e.get('marker') or ''} {e['measure']} {e['key']}: "
                          f"want {e.get('level', e.get('max_level'))}, got {got} ({e['note']})")
+    for iid, level in exp.get("items", {}).items():
+        got = next(m["items"][iid]["level"] for m in res.values() if iid in m["items"])
+        if got != level:
+            wrong.append(f"item {iid}: want {level}, got {got}")
     assert not wrong, "\n".join(wrong)
     for m in res.values():  # hidden slides are never in findings
         for f in m["findings"]:

@@ -17,7 +17,7 @@ rating records its confidence.
 | Text size   | 3      | measured accessibility: weighted higher    |
 | Contrast    | 3      | measured accessibility: weighted higher    |
 | Color       | 2      | measured + judged                          |
-| Readability | 2      | measured + judged (planned)                |
+| Readability | 2      | measured + judged                          |
 | Content     | 2      | judged                                     |
 | Format      | 1      | judged; mostly set by context rubrics (planned) |
 
@@ -89,6 +89,39 @@ rating records its confidence.
 - Level 2: On more than 10% of slides, words are emphasized by color alone with less than 3:1 lightness difference.
 - Level 1: On more than 10% of slides, words emphasized by color alone look the same as the surrounding text with color blindness.
 
+### RD-1 Vocabulary level
+- section: Readability
+- weight: 2
+- measure: readability
+- source: CEFR-J Wordlist 1.5 and Octanove C1/C2 profile; vocabulary coverage research (Laufer 1989; Hu & Nation 2000; Laufer & Ravenhorst-Kalovski 2010)
+- more: references/readability.md
+- Level 4: 98% or more of the words are at or below the audience's CEFR level (B2 for a general audience, B1 for second-language readers). Most readers understand without help.
+- Level 3: 95% or more. Readers get the gist but need some support, e.g. definitions or the speaker.
+- Level 2: 90% or more. Many readers will miss parts of the text.
+- Level 1: Under 90%. The vocabulary is a barrier for this audience.
+
+### RD-2 Sentence length
+- section: Readability
+- weight: 1
+- measure: readability
+- source: Plain-language guidance (15–20 words per sentence on average)
+- more: references/readability.md
+- Level 4: On at least 90% of slides, every sentence has 15 words or fewer. A bullet without end punctuation counts as one sentence.
+- Level 3: On at least 90% of slides, 20 words or fewer.
+- Level 2: On at least 90% of slides, 30 words or fewer.
+- Level 1: On more than 10% of slides, some sentence or bullet has more than 30 words.
+
+### RD-3 Acronyms spelled out
+- section: Readability
+- weight: 1
+- measure: readability
+- source: Plain-language guidance; WCAG 2.x 3.1.4 Abbreviations (AAA)
+- more: https://www.w3.org/WAI/WCAG22/Understanding/abbreviations.html
+- Level 4: Every acronym is spelled out somewhere in the deck, e.g. "Think-Pair-Share (TPS)".
+- Level 3: One or two acronyms are never spelled out.
+- Level 2: Three to five acronyms are never spelled out.
+- Level 1: Six or more acronyms are never spelled out.
+
 ## Judged items
 
 ### CO-3 Meaning doesn't depend on color alone
@@ -100,6 +133,16 @@ rating records its confidence.
 - Level 3: One or two places rely on color, but the meaning is also stated in nearby text.
 - Level 2: Some charts or legends can only be read by color, e.g. series told apart only by a color key.
 - Level 1: Key content depends on color alone, e.g. "the red items are…", or results shown only as colored cells.
+
+### RD-4 Language suits the audience
+- section: Readability
+- weight: 2
+- source: Plain-language guidance; CEFR; research on second-language reading
+- more: references/readability.md
+- Level 4: Wording is plain and direct for this audience: technical terms are defined or expected, with no idioms, culture-specific references, or stacked nouns that would trip up readers.
+- Level 3: A few idioms, phrasal verbs, or undefined terms, but the meaning is clear from context.
+- Level 2: Several places where readers outside the field, or reading in a second language, would likely misread or stall.
+- Level 1: Jargon, idioms, or dense phrasing throughout; much of the text is hard for this audience.
 
 ### CN-1 Key ideas are identifiable
 - section: Content

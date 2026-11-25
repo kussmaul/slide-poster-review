@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "skill" / "slide-poster-review" / "scripts"))
 import color  # noqa: E402
+import readability  # noqa: E402
 import contrast  # noqa: E402
 import extract_text  # noqa: E402
 import font_size  # noqa: E402
@@ -44,6 +45,7 @@ def review(src: Path, force: bool) -> tuple[str, str]:
     font_size.measure(d)
     contrast.measure(d)
     color.measure(d)
+    readability.measure(d, audience_given=False)
     md = scorecard.build(d).read_text(encoding="utf-8")
     sc = json.loads((d / "scorecard.json").read_text(encoding="utf-8"))
     return md, f"{sc['overall']:.1f} of 4 ({sc['items_assessed']} of {sc['items_total']} items)"

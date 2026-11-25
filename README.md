@@ -4,10 +4,10 @@ An [Agent Skill](https://agentskills.io) that reviews slide decks and posters ag
 produces a scorecard. It measures text size, contrast, color use, and readability, and adds judged
 items such as format and content. It reports issues but never rewrites your content.
 
-**Status:** early version. It rates text size, text contrast (including text inside images), and
-use of color (measured), plus whether key ideas are identifiable and whether meaning depends on
-color alone (judged by the agent), and produces a scorecard. Readability is next (see
-[QUEUE.md](QUEUE.md)).
+**Status:** early version. It rates text size, text contrast (including text inside images), use
+of color, and readability (measured), plus whether key ideas are identifiable, whether meaning
+depends on color alone, and whether the language suits the audience (judged by the agent), and
+produces a scorecard. Next steps are in [QUEUE.md](QUEUE.md).
 
 ## What you can give it
 
@@ -138,6 +138,42 @@ protanopia and deuteranopia, Brettel 1997 for tritanopia, and Machado 2009 at se
 moderate deficiency. Color differences are CIELAB ΔE: "clearly different" is more than 25, "nearly
 the same" less than 10.
 
+## How readability is rated
+
+Readability depends on the audience, so intake asks who it is: a **general** audience, readers of
+English as a **second language**, or **experts** in the field. This is the only place the audience
+changes a rating. Three items are measured and one is judged:
+
+- **Vocabulary level** (measured). Each word is looked up in two free CEFR word lists: the
+  CEFR-J Wordlist (A1–B2) and the Octanove C1/C2 profile. Inflections are removed first
+  (*studies* → *study*). Names, numbers, and acronyms are left out. The item is the share of words
+  at or below the audience's level: B2 for a general audience, B1 for second-language readers,
+  C2 for experts.
+
+  | Level | Words at or below the audience's level |
+  |---|---|
+  | Level 4 | 98% or more: most readers understand without help |
+  | Level 3 | 95% or more: readers get the gist, with some support |
+  | Level 2 | 90% or more |
+  | Level 1 | under 90% |
+
+  The bounds come from research on how many words a reader must know to understand a text
+  (Laufer; Hu & Nation; Schmitt et al.). The lists hold about 10,000 words, so some common
+  academic words (*framework*, *variable*) count as rare, and so do technical terms. Findings
+  name the words, so you can see which are terms your audience knows.
+- **Sentence length** (measured). Each slide is rated by its longest sentence; a bullet without
+  end punctuation counts as one sentence. Level 4 is 15 words or fewer, Level 3 is 20, Level 2
+  is 30. The deck gets the level that 90% of slides reach.
+- **Acronyms spelled out** (measured). Acronyms that are never spelled out anywhere in the deck,
+  e.g. as "Think-Pair-Share (TPS)". Level 4 is none, Level 3 one or two, Level 2 three to five.
+- **Language suits the audience** (judged). The agent reads the text for idioms, phrasal verbs,
+  jargon, stacked nouns, and culture-specific references, using hints from the measured items.
+
+Flesch Reading Ease and Flesch-Kincaid grade are reported, but not scored: they are built for
+prose, and slide fragments make text look easier than it is. Text found by OCR is left out of
+readability, because misread words would count as rare. Sources are in
+[references/readability.md](skill/slide-poster-review/references/readability.md).
+
 ## The scorecard
 
 - The scorecard has a summary row for each **section** (e.g. "Text size: 1.8 of 4"), the weighted
@@ -188,7 +224,7 @@ Decks with known flaws come from a generator; each has an `.expected.json` with 
 flaw should get, which the tests check:
 
 ```
-.venv/Scripts/python tools/make_test_decks.py     # -> test-inputs/generated/flaws-{slides,poster,color}.pptx
+.venv/Scripts/python tools/make_test_decks.py     # -> test-inputs/generated/flaws-{slides,poster,color,text}.pptx
 ```
 
 `review_test_inputs.py` includes `test-inputs/generated/` if it exists. Open a scorecard in VS Code's
@@ -202,6 +238,7 @@ python skill/slide-poster-review/scripts/extract_text.py output/deck-pptx
 python skill/slide-poster-review/scripts/font_size.py output/deck-pptx
 python skill/slide-poster-review/scripts/contrast.py output/deck-pptx
 python skill/slide-poster-review/scripts/color.py output/deck-pptx
+python skill/slide-poster-review/scripts/readability.py output/deck-pptx --audience general
 # the agent writes output/deck-pptx/judgments.json (see SKILL.md), then:
 python skill/slide-poster-review/scripts/scorecard.py output/deck-pptx
 ```

@@ -8,6 +8,7 @@ Reads from OUTPUT_DIR:
     font_size.json     (font_size.py)   measured items FS-*
     contrast.json      (contrast.py)    measured items CT-*
     color.json         (color.py)       measured items CO-1, CO-2
+    readability.json   (readability.py) measured items RD-1, RD-2, RD-3
     judgments.json     (the agent)      judged items, see below
 Rubric: rubrics/default.md, then each --rubric file in order. A later file overrides fields of an
 item with the same ID, adds new items, and overrides section weights by name.
@@ -33,7 +34,7 @@ from pathlib import Path
 
 SKILL = Path(__file__).resolve().parents[1]
 LEVEL_RE = re.compile(r"^Level ([1-4])$")
-MEASURE_FILES = ("font_size.json", "contrast.json", "color.json")  # written by the measure scripts
+MEASURE_FILES = ("font_size.json", "contrast.json", "color.json", "readability.json")  # written by the measure scripts
 
 
 # ---------- rubric ----------
@@ -187,7 +188,10 @@ def score(sections: dict, items: dict, results: dict) -> dict:
 
 # ---------- report ----------
 
-def _context_line(manifest: dict, fs: dict | None) -> str:
+AUDIENCE_NAMES = {"general": "general audience", "l2": "second-language readers", "experts": "experts"}
+
+
+def _context_line(manifest: dict, fs: dict | None, rd: dict | None = None) -> str:
     kind = (fs or {}).get("kind") or manifest.get("kind_guess", "slides")
     pages = manifest["pages"]
     hidden = sum(p["hidden"] for p in pages)
@@ -210,6 +214,8 @@ def _context_line(manifest: dict, fs: dict | None) -> str:
             else:
                 w, h = pages[0]["width_pt"] / 72, pages[0]["height_pt"] / 72
                 parts.append(f"printed at {w:g} × {h:g} in (assumed)")
+    if rd:
+        parts.append(f"vocabulary for {AUDIENCE_NAMES.get(rd['audience'], rd['audience'])} (CEFR {rd['target']})")
     return " · ".join(parts)
 
 
@@ -265,7 +271,8 @@ def build(out_dir: Path, extra_rubrics: list[Path] = ()) -> Path:
     for measure_file in MEASURE_FILES:
         notices += (_read(out_dir / measure_file) or {}).get("notices", [])
     src_name = Path(manifest["source"]).name
-    md = render_markdown(src_name, _context_line(manifest, fs), sc, notices, judgments, problems)
+    rd = _read(out_dir / "readability.json")
+    md = render_markdown(src_name, _context_line(manifest, fs, rd), sc, notices, judgments, problems)
     (out_dir / "scorecard.md").write_text(md, encoding="utf-8")
     (out_dir / "scorecard.json").write_text(json.dumps(
         {"source": manifest["source"], **sc, "notices": notices, "problems": problems,
@@ -287,4 +294,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):  # Windows consoles and pipes default to cp1252
+        stream.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

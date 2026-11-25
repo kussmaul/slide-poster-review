@@ -8,10 +8,13 @@ Writes, for each deck, NAME.pptx and NAME.expected.json:
     flaws-poster.pptx   48x36 in poster: the same flaws as text blocks, plus a red-green chart
     flaws-color.pptx    16:9 slides: colors confusable with color-vision deficiency,
                         emphasis by color alone, links, plus controls
+    flaws-text.pptx     16:9 slides: sentence length, acronyms, rare words, plus controls
 
 expected.json: {"deck", "kind", "expect": [...]}, each expectation
-    {"measure": "font_size" | "contrast" | "color", "page": n, "key": "body" | "supporting" | "CO-1" | "CO-2",
+    {"measure": "font_size" | "contrast" | "color" | "readability", "page": n,
+     "key": "body" | "supporting" | "CO-1" | "CO-2" | "RD-2",
      "level": n  (or "max_level": n), "marker": "text in the block" (posters), "note": "..."}
+    "items" (optional): {item id: level} for deck-level items, e.g. RD-1 and RD-3.
 "level" is exact; "max_level" means "this flaw is found" where the exact level depends on
 rendering (e.g. OCR). Hidden slides are listed under "hidden" and must not be scored.
 
@@ -351,12 +354,68 @@ def make_color(out: Path, tmp: Path) -> dict:
     return {"deck": "flaws-color.pptx", "kind": "slides", "hidden": [12], "expect": exp}
 
 
+def make_text(out: Path, tmp: Path) -> dict:
+    prs, exp = slides_prs(), []
+
+    def e(page, level, note=""):
+        exp.append({"measure": "readability", "page": page, "key": "RD-2", "level": level, "note": note})
+
+    s = blank(prs)
+    text(s, 0.8, 2.2, 11.5, 1.5, ["Generated test deck: readability"], size=54, bold=True)
+    e(1, 4)
+
+    s = titled(prs, "Control: short plain bullets")
+    text(s, 0.8, 2.0, 11.5, 4.5, bullets(["Read the page", "Talk with your team",
+                                          "Write one new idea"]), size=36)
+    e(2, 4, "three short bullets")
+
+    for page, n, level in ((3, 18, 3), (4, 26, 2), (5, 36, 1)):
+        words = ("Students in each small team read the short text together and then they write "
+                 "down the main idea of the story in their own words before they share it with "
+                 "the rest of the class at the end of the day").split()
+        s = titled(prs, f"One sentence of {n} words")
+        text(s, 0.8, 2.0, 11.5, 4.5, [" ".join(words[:n]) + "."], size=32)
+        e(page, level, f"{n}-word sentence, wrapped over several lines")
+
+    s = titled(prs, "Defined acronyms")
+    text(s, 0.8, 2.0, 11.5, 4.5, bullets(["Think-Pair-Share (TPS) is a short activity",
+                                          "PLTL (Peer-Led Team Learning) uses student leaders",
+                                          "Use TPS and PLTL in class"]), size=32)
+    e(6, 4)
+
+    s = titled(prs, "Undefined acronyms")
+    text(s, 0.8, 2.0, 11.5, 4.5, bullets(["Check the XQZ before class", "Send the BRV to your team"]),
+         size=32)
+    e(7, 4, "two acronyms that are never spelled out")
+
+    s = titled(prs, "Rare words")
+    text(s, 0.8, 2.0, 11.5, 4.5, bullets(["Ubiquitous heuristics obfuscate epistemological paradigms",
+                                          "Recalcitrant ontologies engender pedagogical dissonance"]),
+         size=32)
+    e(8, 4, "off-list and C-level words")
+
+    s = titled(prs, "Not problems")
+    text(s, 0.8, 2.0, 11.5, 4.5, bullets(["Don't forget: search with AND, OR, and NOT",
+                                          "Ask for help at help@example.org",
+                                          "Maria and Kenji teachers' notes, 2nd edition"]), size=32)
+    e(9, 4, "contractions, capitals, email, names, ordinals")
+
+    s = titled(prs, "Hidden slide with a long sentence", hidden=True)
+    text(s, 0.8, 2.0, 11.5, 4.5, ["This hidden slide has one very long sentence that goes on and on "
+                                  "with many words about the ZZQ so that it would fail the sentence "
+                                  "length check if hidden slides were scored by mistake."], size=24)
+
+    save(prs, out / "flaws-text.pptx")
+    return {"deck": "flaws-text.pptx", "kind": "slides", "hidden": [10], "expect": exp,
+            "items": {"RD-1": 2, "RD-2": 1, "RD-3": 3}}
+
+
 def make_all(out: Path) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / "_assets"
     tmp.mkdir(exist_ok=True)
     paths = []
-    for maker in (make_slides, make_poster, make_color):
+    for maker in (make_slides, make_poster, make_color, make_text):
         exp = maker(out, tmp)
         (out / exp["deck"]).with_suffix(".expected.json").write_text(
             json.dumps(exp, indent=2), encoding="utf-8")

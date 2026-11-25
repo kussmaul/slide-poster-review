@@ -503,4 +503,6 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):  # Windows consoles and pipes default to cp1252
+        stream.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

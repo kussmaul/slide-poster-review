@@ -57,9 +57,16 @@ Separate from the POGIL claude-skills project (review / simulate / split).
   same weight/style/size, no drawn underline; neutral-vs-neutral ignored; 3:1 lightness → 3, else 2,
   alike in simulation → 1. CO-3 (judged): is meaning lost without color; agent uses simulated views.
   Limitation: JPEG infographics count as photos.
-- **Readability:** CEFR vocabulary profile (free list such as CEFR-J or Oxford 3000/5000) and patterns
-  (idioms, phrasal verbs, undefined acronyms, noun stacks, words per bullet), plus judgment.
-  Flesch / Flesch-Kincaid and language adaptations are secondary signals only.
+- **Readability:** body text on shown pages (no footers/citations, no OCR text). Segments = bullets
+  and paragraphs (wrapped lines joined, split at bullet glyphs); sentences split at . ? ! ; : and dashes.
+  RD-1 (measured, medium): CEFR coverage, CEFR-J 1.5 (A1–B2) + Octanove C1/C2 (shipped in
+  assets/cefr/), inflections stripped by rule; names/numbers/acronyms skipped; pooled over the deck.
+  Target by audience: general B2, l2 B1, experts C2. Levels 98 / 95 / 90% (Laufer; Hu & Nation).
+  RD-2 (measured): longest sentence per slide, 15 / 20 / 30 words, 90% rule.
+  RD-3 (measured): acronyms never spelled out anywhere ("X Y Z (XYZ)", "XYZ (…)", "XYZ: …"); 0 / 1–2 / 3–5.
+  RD-4 (judged): idioms, phrasal verbs, jargon, noun stacks; agent uses `hints` in readability.json.
+  Flesch / Flesch-Kincaid (+ Flesch adaptations for de es fr it nl ru) reported, not scored.
+  No textstat dependency (it pulls in nltk and downloads CMUdict at first use); see references/readability.md.
 - **Extras:** cognitive load, data graphics, accessibility metadata, consistency.
 
 ## Judgments (initial)
@@ -85,10 +92,10 @@ skill/slide-poster-review/     ← the shipped skill (folder name = `name` in SK
   requirements.txt  runtime Python deps
   rubrics/          default.md, presets.md
   references/       WCAG, 8H, ADA, CEFR notes + links
-  scripts/          render, extract_text, font_size, contrast, cvd_sim, readability
+  assets/cefr/      CEFR-J and Octanove word lists (with attribution)
+  scripts/          render, extract_text, ocr, font_size, contrast, color, readability, scorecard
 tests/  test-inputs/ (local, gitignored)  DESIGN.md  QUEUE.md  requirements-dev.txt
 ```
 
 ## Open / verify
 - Check the angle thresholds against vision/legibility literature (calibrated to rules of thumb so far).
-- Verify which formulas and languages `textstat` supports.

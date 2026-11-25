@@ -1,9 +1,9 @@
 ---
 name: slide-poster-review
-description: Reviews slide decks and posters (PPTX, Google Slides exports, PDF) against accessibility and presentation rubrics and produces a scorecard with a ranked issue list. Measures text size by viewing distance and text contrast (WCAG), including text inside images (OCR), and colors that look alike with color blindness or carry meaning alone; rates whether key ideas are identifiable. Readability checks are planned. Use when the user asks to review, check, critique, or score slides, a presentation, a deck, or a poster.
-compatibility: Requires Python 3.10+ with pymupdf, python-pptx, fonttools, numpy, and daltonlens (requirements.txt). Rendering .pptx needs PowerPoint (Windows) or LibreOffice; without either, accepts PDF exports only. OCR uses Windows' built-in engine; elsewhere it is skipped with a notice.
+description: Reviews slide decks and posters (PPTX, Google Slides exports, PDF) against accessibility and presentation rubrics and produces a scorecard with a ranked issue list. Measures text size by viewing distance and text contrast (WCAG), including text inside images (OCR), and colors that look alike with color blindness or carry meaning alone; rates readability for the audience (CEFR vocabulary level, sentence length, acronyms) and whether key ideas are identifiable. Use when the user asks to review, check, critique, or score slides, a presentation, a deck, or a poster.
+compatibility: Requires Python 3.10+ with pymupdf, python-pptx, fonttools, numpy, and daltonlens (requirements.txt); readability uses the bundled CEFR word lists, no extra packages. Rendering .pptx needs PowerPoint (Windows) or LibreOffice; without either, accepts PDF exports only. OCR uses Windows' built-in engine; elsewhere it is skipped with a notice.
 metadata:
-  status: "early version: text size, contrast, color, key ideas"
+  status: "early version: text size, contrast, color, readability, key ideas"
 ---
 
 # Slide & poster review
@@ -23,6 +23,10 @@ Ask only for what you don't already know, in one short message:
   PDFs need one slide or poster per page.
 - **Posters: the print size**, e.g. 48x36in or 120x90cm. Without it, the file's page size is assumed.
 - **Slides: the room**, only if it's large (big room, small screen). Then use `--preset slides-large-room`.
+- **The audience:** a general audience, readers of English as a second language (`--audience l2`),
+  or experts in the field (`--audience experts`). This sets the vocabulary level only; text size,
+  contrast, and the other measures are the same for every audience. Also ask for the language if
+  the text isn't English (`--lang de`).
 - **A context rubric** from an organization, conference, course, or lab, if they have one.
 - **An abstract or learning objectives**, if available; they help judge key ideas.
 
@@ -37,6 +41,7 @@ python scripts/ocr.py OUTPUT_DIR                    # text in images/shapes (Win
 python scripts/font_size.py OUTPUT_DIR [--print-size 48x36in] [--preset NAME]
 python scripts/contrast.py OUTPUT_DIR  [--print-size 48x36in] [--preset NAME]   # same options
 python scripts/color.py OUTPUT_DIR                  # color blindness, color-only emphasis
+python scripts/readability.py OUTPUT_DIR [--audience general|l2|experts] [--lang en]
 ```
 
 - If `render.py` fails (exit code 2 or 3), tell the user its message. It explains what to do,
@@ -76,6 +81,15 @@ red-green color blindness). Also look at slides with charts, legends, or colored
 highlights. Ask: is anything lost if color can't be seen? A legend whose entries are also
 labeled, or a highlight that is also bold, loses nothing. CO-1 flags colors that look alike;
 only judgment can say whether they carry meaning. Photos are not checked.
+
+**Language (for RD-4).** Read `outline.md` with the audience in mind, using the `hints` in
+`readability.json`: `above_target` (words above the audience's CEFR level; "off-list" means in
+neither list, often technical terms), `acronyms`, `phrasal_verbs` (candidates; many are fine),
+`long_sentences`, and `names_skipped` (capitalized words treated as names; check for real words
+among them). Look for idioms, culture-specific references, stacked nouns ("student learning
+outcome assessment data"), and terms used before they are explained. Technical terms are fine
+for experts, or when defined. For second-language readers, idioms and phrasal verbs matter most.
+`signals` (Flesch, Flesch-Kincaid) are background only: slide fragments make them read as easy.
 
 Describe what is wrong, not how to fix it: "The conclusion slide lists topics rather than
 findings", not "Change the conclusion to say…".
