@@ -16,7 +16,8 @@ Writes, for each deck, NAME.pptx and NAME.expected.json:
                         text, and bullets that overflow their box into the footer
     flaws-poster-half.pptx  24x18 in poster file printed at 48x36 in ("print_size"): sizes
                         double when printed
-    judged-clear.pptx, judged-poor.pptx  the same short talk done well and badly, for evals of
+    judged-clear.pptx, judged-poor.pptx  the same short talk done well and badly, and
+    judged-middle.pptx  another talk with mixed signals (levels 2-3), for evals of
                         the agent's judged items (tools/eval_judgments.py)
 
 expected.json: {"deck", "kind", "expect": [...]}, each expectation
@@ -710,13 +711,68 @@ def make_judged_poor(out: Path, tmp: Path) -> dict:
             "judged": {k: [1, 2] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4")}}
 
 
+def make_judged_middle(out: Path, tmp: Path) -> dict:
+    """A different talk with every judged item in the middle (level 2 or 3): mixed signals."""
+    prs = slides_prs()
+    s = prs.slides.add_slide(prs.slide_layouts[0])
+    s.shapes.title.text = "Weekly Quizzes Project"  # CN-1: topic titles throughout...
+    s.placeholders[1].text = "Spring report"
+    _titled_layout(prs, "Background", [  # RD-4: a few idioms, phrasal verbs, an undefined term
+        "Many students cram the night before an exam",
+        "Retrieval practice is known to help long-term memory",
+        "We wanted to see if it pans out in intro biology"], body_size=32)
+    _titled_layout(prs, "Method", [
+        "Two sections of intro biology (n = 180)", "One section took a 5-question quiz each week",
+        "The other section did the same homework, without quizzes", "Both took the same final exam"],
+        body_size=28)
+    s = _titled_layout(prs, "Results")
+    data = CategoryChartData()  # DG-1 / CO-3: legend only, no axis titles, units, or labels
+    data.categories = ["Unit 1", "Unit 2", "Unit 3", "Unit 4"]
+    data.add_series("Weekly quizzes", (74, 71, 78, 76))
+    data.add_series("No quizzes", (69, 64, 70, 67))
+    ch = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.8), Inches(1.6), Inches(11.7),
+                            Inches(4.6), data).chart
+    ch.font.name, ch.font.size = FONT, Pt(20)
+    ch.has_legend = True
+    ch.legend.position = XL_LEGEND_POSITION.RIGHT
+    ch.legend.include_in_layout = False
+    for sr, c in zip(ch.plots[0].series, ["#0072b2", "#e69f00"]):
+        sr.format.fill.solid()
+        sr.format.fill.fore_color.rgb = rgb(c)
+    ch.value_axis.minimum_scale, ch.value_axis.maximum_scale = 0, 100
+    text(s, 0.8, 6.3, 11.7, 0.8, ["The quiz section scored higher on every unit exam."], size=28)
+    _titled_layout(prs, "Details", [  # CL-1: one crowded slide among focused ones
+        "Quizzes opened Monday and closed Friday at 5 pm",
+        "LMS settings: one attempt, 15 minutes, answers shown after closing",
+        "Quizzes counted for 5% of the course grade",
+        "Attendance was about the same in both sections",
+        "Most students finished each quiz in under 10 minutes",
+        "A few students asked for extensions when they were sick, and we usually gave them one extra "
+        "day, although this was not part of the original plan and may have affected the results",
+        "The final exam had 60 multiple-choice items",
+        "The same teacher taught both sections"], body_size=20)
+    _titled_layout(prs, "Student comments", [
+        "\"The quizzes made me keep up with the reading\"",
+        "\"At first I didn't like them, but they grew on me\"",
+        "\"I wish other courses did this\""], body_size=32)
+    _titled_layout(prs, "Summary", [  # ...but a summary that states the findings
+        "Weekly quizzes went with higher unit exam scores",
+        "The quizzes took students about 10 minutes a week",
+        "Next: try weekly quizzes in other courses"], body_size=32)
+    save(prs, out / "judged-middle.pptx")
+    return {"deck": "judged-middle.pptx", "kind": "slides", "hidden": [], "expect": [],
+            "judged": {k: [2, 3] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4")},
+            "key_ideas": [["higher", "scored", "scores", "better"],
+                          ["10 minutes", "ten minutes", "little time", "cheap", "low cost", "low-cost"]]}
+
+
 def make_all(out: Path) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / "_assets"
     tmp.mkdir(exist_ok=True)
     paths = []
     for maker in (make_slides, make_poster, make_color, make_text, make_structure, make_4x3,
-                  make_poster_half, make_judged_clear, make_judged_poor):
+                  make_poster_half, make_judged_clear, make_judged_poor, make_judged_middle):
         exp = maker(out, tmp)
         (out / exp["deck"]).with_suffix(".expected.json").write_text(
             json.dumps(exp, indent=2), encoding="utf-8")

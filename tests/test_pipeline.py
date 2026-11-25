@@ -626,7 +626,7 @@ def test_accessibility_needs_pptx(genai_pair):
 
 DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx", "flaws-text.pptx",
          "flaws-structure.pptx", "flaws-4x3.pptx", "flaws-poster-half.pptx",
-         "judged-clear.pptx", "judged-poor.pptx"]  # judged-*: measured checks only; evals in tools/
+         "judged-clear.pptx", "judged-poor.pptx", "judged-middle.pptx"]  # judged-*: measured checks only; evals in tools/
 
 
 @pytest.fixture(scope="module")
