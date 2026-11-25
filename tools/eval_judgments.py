@@ -2,7 +2,7 @@
 
 Usage:
     python tools/eval_judgments.py prepare [EVAL_DIR] [--runs N] [--seed S] [--only GLOB]
-    python tools/eval_judgments.py check   [EVAL_DIR]
+    python tools/eval_judgments.py check   [EVAL_DIR] [--save NAME]
 
 EVAL_DIR defaults to .cache/evals/. `prepare` regenerates the decks (tools/make_test_decks.py),
 runs the measuring scripts on every deck with "judged" levels in its .expected.json, then copies
@@ -20,11 +20,16 @@ and to take intake.md as the user's answers. It writes judgments.json in each fo
 `check` scores every run against the expected ranges, and checks that items in "omit" (a needed
 intake fact is missing) were left out. Then it summarizes each item across runs (levels seen,
 share in range) and writes EVAL_DIR/eval-report.md. Exit code 1 if any judgment is missing, out
-of range, or given when it should have been left out.
+of range, or given when it should have been left out. `prepare` records what was judged in
+EVAL_DIR/provenance.json (date, git commit, a hash of each deck); `check` puts it at the top of
+the report, and `--save NAME` also copies the report to evals/YYYY-MM-DD-NAME.md (tracked).
 """
 from __future__ import annotations
 
 import argparse
+import datetime
+import hashlib
+import subprocess
 import fnmatch
 import json
 import random
@@ -81,6 +86,18 @@ def _intake_md(intake: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _provenance(decks: dict) -> dict:
+    def git(*args):
+        r = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+        return r.stdout.strip() if r.returncode == 0 else None
+    tracked = ["tools", "skill"]  # the generator, and the skill and rubrics the judges read
+    dirty = git("status", "--porcelain", "--", *tracked)
+    return {"date": datetime.date.today().isoformat(), "commit": git("rev-parse", "--short", "HEAD"),
+            "uncommitted_changes": bool(dirty),
+            "decks": {stem: hashlib.sha256(src.read_bytes()).hexdigest()[:12]
+                      for stem, (src, _) in sorted(decks.items())}}
+
+
 def prepare(eval_dir: Path, runs: int, seed: int | None, only: str | None = None) -> list[Path]:
     import accessibility, color, contrast, extract_text, font_size, layout, ocr, readability, render  # noqa: E401
     decks = judged_decks(only)
@@ -101,6 +118,7 @@ def prepare(eval_dir: Path, runs: int, seed: int | None, only: str | None = None
     key = {f"{'poster' if decks[stem][1]['kind'] == 'poster' else 'talk'}-{letter}": stem
            for letter, stem in zip(string.ascii_uppercase, stems)}
     (eval_dir / "key.json").write_text(json.dumps(key, indent=2), encoding="utf-8")
+    (eval_dir / "provenance.json").write_text(json.dumps(_provenance(decks), indent=2), encoding="utf-8")
     dirs = []
     for r in range(1, runs + 1):
         run = eval_dir / f"run{r}"
@@ -115,7 +133,7 @@ def prepare(eval_dir: Path, runs: int, seed: int | None, only: str | None = None
     return dirs
 
 
-def check(eval_dir: Path) -> int:
+def check(eval_dir: Path, save: str | None = None) -> int:
     decks = judged_decks()
     key = json.loads((eval_dir / "key.json").read_text(encoding="utf-8"))
     runs = sorted((p for p in eval_dir.glob("run*") if p.is_dir()), key=lambda p: int(p.name[3:]))
@@ -153,7 +171,14 @@ def check(eval_dir: Path) -> int:
                              f"({'; '.join(j.get('key_ideas', [])) or 'none stated'})")
         lines += ["", *ideas, ""]
         per_run.append(run.name)
-    summary = ["# Judged-item eval", "",
+    pp = eval_dir / "provenance.json"
+    prov = json.loads(pp.read_text(encoding="utf-8")) if pp.exists() else None
+    head = (["Prepared " + prov["date"] + " at commit `" + str(prov["commit"]) + "`"
+             + (" with uncommitted changes in tools/ or skill/" if prov["uncommitted_changes"] else "") + ". Decks: "
+             + ", ".join(f"{k} `{v}`" for k, v in prov["decks"].items()) + " (sha256, first 12 hex digits; "
+             "regenerate with tools/make_test_decks.py at that commit).", ""]
+            if prov else ["Provenance not recorded.", ""])
+    summary = ["# Judged-item eval", "", *head,
                f"**{passed} of {total} judgments within the expected range** "
                f"({len(runs)} runs, decks anonymized as {', '.join(f'{a} = {s}' for a, s in key.items())}).", "",
                "| Deck | Item | Expected | Levels by run | In range |", "|---|---|---|---|---|"]
@@ -167,6 +192,11 @@ def check(eval_dir: Path) -> int:
                        f"| {ok} of {len(lvls)} |")
     report = "\n".join(summary + [""] + lines) + "\n"
     (eval_dir / "eval-report.md").write_text(report, encoding="utf-8")
+    if save:
+        out = ROOT / "evals" / f"{(prov or {}).get('date') or datetime.date.today().isoformat()}-{save}.md"
+        out.parent.mkdir(exist_ok=True)
+        out.write_text(report, encoding="utf-8")
+        print(f"saved {out}", file=sys.stderr)
     print(report)
     return 0 if passed == total else 1
 
@@ -177,14 +207,17 @@ def main() -> int:
     ap.add_argument("eval_dir", nargs="?", type=Path, default=ROOT / ".cache" / "evals")
     ap.add_argument("--runs", type=int, default=3, help="copies to judge independently (prepare)")
     ap.add_argument("--seed", type=int, default=None, help="fix the deck-to-letter shuffle (prepare)")
-    ap.add_argument("--only", default=None, help='deck name globs, comma-separated, e.g. "judged-poster-*,judged-low" (prepare)')
+    ap.add_argument("--only", default=None,
+                    help='deck name globs, comma-separated, e.g. "judged-poster-*,judged-low" (prepare)')
+    ap.add_argument("--save", metavar="NAME", default=None,
+                    help="also write the report to evals/YYYY-MM-DD-NAME.md (check)")
     a = ap.parse_args()
     a.eval_dir.mkdir(parents=True, exist_ok=True)
     if a.action == "prepare":
         for d in prepare(a.eval_dir, a.runs, a.seed, a.only):
             print(d)
         return 0
-    return check(a.eval_dir)
+    return check(a.eval_dir, a.save)
 
 
 if __name__ == "__main__":
