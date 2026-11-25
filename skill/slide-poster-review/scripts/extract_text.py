@@ -3,7 +3,8 @@
 Usage:
     python scripts/extract_text.py OUTPUT_DIR
 
-Reads OUTPUT_DIR/manifest.json and source.pdf; writes OUTPUT_DIR/text.json with:
+Reads OUTPUT_DIR/manifest.json and source.pdf; writes OUTPUT_DIR/outline.md (compact text per
+page, for reading the content) and OUTPUT_DIR/text.json with:
     fonts   per PDF font: base name, cap height (em) from embedded font metrics when available
     pages   per page: spans with text, font, size_pt, bold/italic, color (#rrggbb), alpha,
             bbox and origin (PDF points, origin top-left), direction
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -225,7 +227,44 @@ def extract(out_dir: Path) -> Path:
     }
     path = out_dir / "text.json"
     path.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out_dir / "outline.md").write_text(outline(result, manifest), encoding="utf-8")
     return path
+
+
+def outline(result: dict, manifest: dict) -> str:
+    """Compact per-page text (one line per text block) for reading the content as a whole."""
+    hidden = {p["index"]: p["hidden"] for p in manifest["pages"]}
+    titles = {s["index"]: s["title"] for s in (result.get("pptx") or {}).get("slides", [])}
+    unit = "Slide" if manifest.get("kind_guess") == "slides" else "Page"
+    lines = [f"# Outline: {Path(manifest['source']).name}", ""]
+    page_blocks = []
+    for p in result["pages"]:
+        blocks: dict[int, list[str]] = {}
+        for s in p["spans"]:
+            blocks.setdefault(s["block"], []).append(s["text"].strip())
+        page_blocks.append([" ".join(t for t in texts if t) for texts in blocks.values()])
+    # Drop footers: block text repeated on many pages, and bare page numbers.
+    norm = lambda t: re.sub(r"\d+", "#", t)  # noqa: E731
+    counts: dict[str, int] = {}
+    for blocks in page_blocks:
+        for t in {norm(b) for b in blocks}:
+            counts[t] = counts.get(t, 0) + 1
+    min_repeat = max(3, len(page_blocks) // 4)
+    dropped = sorted({b for blocks in page_blocks for b in blocks if counts[norm(b)] >= min_repeat
+                      and not re.fullmatch(r"\d{1,3}", b)})
+    if dropped and len(page_blocks) >= 3:
+        lines += [f"Repeated on most pages (omitted below): {'; '.join(d[:80] for d in dropped[:5])}", ""]
+    for p, blocks in zip(result["pages"], page_blocks):
+        flag = " (hidden)" if hidden.get(p["index"]) else ""
+        title = titles.get(p["index"])
+        lines.append(f"## {unit} {p['index']}{flag}" + (f": {title}" if title else ""))
+        for text in blocks:
+            if (not text or text == title or re.fullmatch(r"\d{1,3}", text)
+                    or (len(page_blocks) >= 3 and counts[norm(text)] >= min_repeat)):
+                continue
+            lines.append(f"- {text[:300]}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -126,7 +126,60 @@ def assign_roles(pages: list[dict], kind: str) -> None:
 
 BULLET_START = re.compile(r"^\s*([●○■□◆◇▪▫•◦‣∙·–—\-*➢➤►▸✓✔]|\(?\d{1,2}[.)]|\(?[a-zA-Z][.)]\s)")
 KIND_PLURAL = {"title": "titles", "bullet": "bullets", "sub-bullet": "sub-bullets",
-               "chart/table": "chart/table text", "label": "labels", "text": "other text"}
+               "chart/table": "chart/table text", "label": "short labels", "text": "other text"}
+LABEL_WORDS = 5  # a block this short is a label (table cell, diagram or chart label)
+KIND_PLURAL["image text"] = "text in images or shapes"
+
+
+def load_ocr(out_dir: Path) -> dict:
+    """ocr.json (from ocr.py) as {available, words_by_page, unread}; empty if OCR wasn't run."""
+    try:
+        r = json.loads((out_dir / "ocr.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"ran": False, "available": False, "words_by_page": {}, "unread": []}
+    by_page: dict = defaultdict(list)
+    for w in r["words"]:
+        by_page[w["page"]].append(w)
+    return {"ran": True, "available": r["available"], "words_by_page": by_page,
+            "unread": r["unread"], "count": len(r["words"])}
+
+
+def ocr_lines(ocr: dict, page: int) -> list[dict]:
+    """OCR words on a page grouped into lines, each with its median cap height (robust to a
+    single misread word)."""
+    lines: dict = defaultdict(list)
+    for w in ocr["words_by_page"].get(page, []):
+        lines[(w.get("region", "page"), w["line"])].append(w)
+    out = []
+    for (region, _), ws in lines.items():
+        caps = sorted(w["cap_pt"] for w in ws)
+        out.append({"text": " ".join(w["text"] for w in ws), "cap_pt": caps[len(caps) // 2],
+                    "region": region, "words": ws})
+    return out
+
+
+def ocr_notices(ocr: dict, unit: str) -> list[dict]:
+    """Notices about text in images: what OCR found, what it couldn't read, or that it didn't run."""
+    if not ocr["available"]:
+        why = "OCR isn't available on this computer" if ocr["ran"] else "OCR wasn't run"
+        return [{"code": "OCR-OFF", "level": "info",
+                 "message": f"Text inside images and text drawn as shapes was not measured ({why}).",
+                 "advice": "Check those by eye."}]
+    out = []
+    pages = sorted(ocr["words_by_page"])
+    if pages:
+        out.append({"code": "OCR-FOUND", "level": "info",
+                    "message": f"{ocr['count']} words were found by OCR in images or shapes on {unit}s "
+                               f"{', '.join(map(str, pages[:8]))}{'…' if len(pages) > 8 else ''}. "
+                               "Their size and contrast are estimates (medium confidence).",
+                    "advice": None})
+    if ocr["unread"]:
+        up = sorted({u["page"] for u in ocr["unread"]})
+        out.append({"code": "OCR-UNREAD", "level": "warning",
+                    "message": f"{len(ocr['unread'])} areas look like text drawn as shapes but couldn't be "
+                               f"read, on {unit}s {', '.join(map(str, up[:8]))}.",
+                    "advice": "Check these by eye; unreadable text may also be hard for viewers."})
+    return out
 
 
 def _ws(t: str) -> str:
@@ -141,7 +194,9 @@ def assign_kinds(pages: list[dict], pptx: dict | None) -> None:
     (sub-)bullet: lines starting with a bullet glyph or list number; indent rank 0 = bullet,
                   deeper = sub-bullet; wrapped lines inherit from the line above in the same block
     chart/table:  inside a PPTX chart or table frame
-    label:        up to 4 words, not one of the above
+    label:        a whole text block of at most LABEL_WORDS words (table cells, diagram and
+                  chart labels); not one of the above
+    text:         anything else, e.g. paragraphs and their wrapped lines
     """
     slides = {s["index"]: s for s in (pptx or {}).get("slides", [])}
     for p in pages:
@@ -170,6 +225,9 @@ def assign_kinds(pages: list[dict], pptx: dict | None) -> None:
         def indent_rank(x: float) -> int:
             return min(range(len(indents)), key=lambda i: abs(indents[i] - x))
 
+        block_words: Counter = Counter()
+        for s in p["spans"]:
+            block_words[s["block"]] += len(s["text"].split())
         prev_kind: dict = {}  # block -> kind of the last bullet line
         for key in sorted(lines):
             block = key[0]
@@ -189,7 +247,7 @@ def assign_kinds(pages: list[dict], pptx: dict | None) -> None:
                     k = "chart/table"
                 elif line_kind:
                     k = line_kind
-                elif len(text.split()) <= 4:
+                elif block_words[block] <= LABEL_WORDS:
                     k = "label"
                 else:
                     k = "text"
@@ -239,6 +297,7 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
     default_cap_spans = 0
     tiny: list[tuple] = []  # (page, text, size): too small to see at all
 
+    ocr = load_ocr(out_dir)
     units = []  # slides: one per page; posters: one per text block
     for p in text["pages"]:
         groups: dict = defaultdict(list)
@@ -267,6 +326,19 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
                    "kind": s["kind"]}
             key = p["index"] if kind == "slides" else (p["index"], s["block"])
             groups[key].append(rec)
+        for line in ocr_lines(ocr, p["index"]):
+            cap_pt = line["cap_pt"]
+            angle = (cap_angle_arcmin(cap_pt / p["height_pt"], preset["distance"]) if kind == "slides"
+                     else cap_angle_arcmin(cap_pt * m_per_pt, preset["distance"]))
+            if angle < INVISIBLE_ARCMIN:
+                continue
+            rec = {"text": line["text"][:80], "size_pt": round(cap_pt / DEFAULT_CAP_EM, 1),
+                   "font": "text in image (OCR)", "cap_em": None, "arcmin": round(angle, 2),
+                   "level": level_for(angle, bounds), "role": "body", "reason": None,
+                   "kind": "image text", "ocr": True}
+            # Posters: one unit per picture (or shape cluster), not per OCR line.
+            key = p["index"] if kind == "slides" else (p["index"], f"ocr-{line['region']}")
+            groups[key].append(rec)
         for key, recs in groups.items():
             unit = {"page": p["index"], "hidden": hidden.get(p["index"], False)}
             if kind == "poster":
@@ -280,6 +352,10 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
 
     items, findings = {}, []
     unit_word = ("slide", "slides") if kind == "slides" else ("text block", "text blocks")
+    # Point size (at 0.7 em cap height) that reaches Level TARGET_LEVEL on these pages.
+    comfy_cap = 2 * math.tan(math.radians(bounds[TARGET_LEVEL - 2] / 60) / 2) * preset["distance"]
+    page_h = text["pages"][0]["height_pt"]
+    comfy_pt = (comfy_cap * page_h if kind == "slides" else comfy_cap / m_per_pt) / DEFAULT_CAP_EM
     for item_id, role, label in (("FS-1", "body", "body text"), ("FS-2", "supporting", "supporting text")):
         scored = [u for u in units if role in u and not u["hidden"]]
         if not scored:
@@ -290,6 +366,8 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
         counts = Counter(levels)
         low = [u for u in scored if u[role]["level"] < TARGET_LEVEL]
         confidence = "high" if not default_cap_spans and not (kind == "poster" and not print_size) else "medium"
+        if any(u[role]["smallest"].get("ocr") for u in low):
+            confidence = "medium"  # OCR sizes are estimates (about +-10%)
         items[item_id] = {"role": role, "level": item_level, "units": len(scored),
                           "level_counts": {f"L{k}": counts.get(k, 0) for k in (1, 2, 3, 4)},
                           "confidence": confidence}
@@ -303,16 +381,25 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
             # Name what is small: supporting text by reason, body text by kind (with counts).
             if role == "supporting":
                 reasons = Counter(u[role]["smallest"]["reason"] for u in low)
-                kinds = f" ({', '.join(r for r, _ in reasons.most_common())})"
+                parts = [(f"{r}s", n) for r, n in reasons.most_common()]
             else:
                 kc = Counter(u[role]["smallest"]["kind"] for u in low)
-                kinds = " (" + ", ".join(f"{KIND_PLURAL[k]} {n}" for k, n in kc.most_common()) + ")"
+                parts = [(KIND_PLURAL[k], n) for k, n in kc.most_common()]
+            what = ", ".join(f"{name} ({n} {unit_word[n != 1]})" if i == 0 else f"{name} ({n})"
+                             for i, (name, n) in enumerate(parts))
+            n_low = len(low)
+            headline = (f"{n_low} {unit_word[n_low != 1]} {'has' if n_low == 1 else 'have'} "
+                        f"{label} smaller than comfortable reading size (about {comfy_pt:.0f} pt "
+                        f"in this {'deck' if kind == 'slides' else 'poster'}).")
+            examples = ("slides " if kind == "slides" else "") + ", ".join(sample)
+            size = (f"about {worst['size_pt']:g} pt, text in an image or shape" if worst.get("ocr")
+                    else f"{worst['size_pt']:g} pt {worst['font']}")
+            details = (f"Smallest text is in {what}. For example: {examples}. Smallest: "
+                       f"{size} ({worst['arcmin']:.1f}′, \"{worst['text'][:40]}\").")
             findings.append({
-                "id": item_id, "level": min(u[role]["level"] for u in low), "count": len(low),
-                "confidence": confidence,
-                "summary": (f"{item_id}: {len(low)} {unit_word[len(low) != 1]} {'has' if len(low) == 1 else 'have'} {label}{kinds} below L{TARGET_LEVEL}, "
-                            f"e.g. {', '.join(sample)}; smallest {worst['size_pt']:g} pt "
-                            f"{worst['font']} ({worst['arcmin']:.1f}′)"),
+                "id": item_id, "level": min(u[role]["level"] for u in low), "count": n_low,
+                "confidence": confidence, "headline": headline, "details": details,
+                "summary": f"{item_id}: {headline} {details}",
                 "units": [u["page"] if kind == "slides" else [u["page"], u["block"]] for u in low],
             })
     findings.sort(key=lambda f: (f["level"], -f["count"]))
@@ -329,9 +416,7 @@ def measure(out_dir: Path, preset_name: str | None = None, kind: str | None = No
                                    f"not scored, on pages {', '.join(map(str, pages_tiny[:5]))}. These "
                                    "are often hidden metadata, e.g. from embedded videos.",
                         "advice": "Check that this text isn't meant to be read."})
-    notices.append({"code": "FS-NOT-MEASURED", "level": "info",
-                    "message": "Text inside images and text drawn as shapes (e.g. rotated chart "
-                               "labels) is not measured yet.", "advice": "Check those by eye."})
+    notices += ocr_notices(ocr, "slide" if kind == "slides" else "poster")
 
     result = {
         "measure": "font_size", "kind": kind, "preset": preset,

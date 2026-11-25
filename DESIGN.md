@@ -41,7 +41,14 @@ Separate from the POGIL claude-skills project (review / simulate / split).
   readability only. Scale by real slide height or poster print factor.
   Includes text inside images (OCR text height); "check manually" only when measurement fails,
   and counted as evidence of a potential problem.
+  OCR: Windows OCR (RapidOCR later). Pass 1 = whole page minus PDF text; pass 2 = glyph-like shape
+  clusters retried at ±45°/±90°. Cap height from word boxes (letter shapes; median per line, ≈ ±10%).
+  Posters group OCR text by picture. Contrast for OCR text uses the median background (boxes include
+  nearby graphics); colors not reported.
 - **Contrast:** WCAG 2.x (1.4.3 text, 1.4.11 non-text), sampled from rendered pixels; ratios never rounded.
+  Text: CT-1 body / CT-2 supporting; levels 7 / 4.5 / 3:1 (large: 4.5 / 3:1). "Large" = WCAG 18 pt (14 pt bold)
+  as a visual angle: cap 21.5′ (16.7′ bold). Background excludes glyphs + 2 px; over images/gradients
+  the 10th-percentile contrast is used (medium confidence).
 - **Color:** WCAG 1.4.1 (color not the only cue); color-vision simulation (DaltonLens) as supporting evidence.
 - **Readability:** CEFR vocabulary profile (free list such as CEFR-J or Oxford 3000/5000) and patterns
   (idioms, phrasal verbs, undefined acronyms, noun stacks, words per bullet), plus judgment.
@@ -53,6 +60,11 @@ Separate from the POGIL claude-skills project (review / simulate / split).
 - Content: sections to expand vs. shorten/omit, relative to inferred key ideas.
 
 ## Output
+- Section score = weighted average of its items' levels (shown as "1.8 of 4"); items show "Level 1–4" by name.
+  Overall = weighted average of assessed sections; unassessed items are listed, not counted.
+  Issues ranked by section weight × item share × (4 − level), then by slides affected.
+- Judged items: the agent writes `judgments.json` (level, confidence, headline, details, pages); it can't
+  override measured items.
 - Summary scorecard: section scores (4 levels, weighted), overall score, then a ranked issue list.
 - Issues: ≤1 line, confidence, sample slides/sections ("FS-1: 14 slides below L3, e.g. 4, 9, 12").
 - No rewrites or specific suggested edits (users may accept them blindly).

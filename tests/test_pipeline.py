@@ -8,11 +8,16 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skill" / "slide-poster-review"
 sys.path.insert(0, str(SKILL / "scripts"))
+import contrast  # noqa: E402
 import extract_text  # noqa: E402
 import font_size  # noqa: E402
+import ocr  # noqa: E402
+import scorecard  # noqa: E402
 import render  # noqa: E402
 
 INPUTS = ROOT / "test-inputs"
+# Renders persist here between test runs (render.py reuses them when inputs are unchanged).
+CACHE = ROOT / ".cache" / "test-renders"
 POSTERS = INPUTS / "PNM 2026 posters.pptx"
 HANDOUT = INPUTS / "2026-11 Active & Engaged Learning - slide handout.pdf"
 
@@ -27,7 +32,7 @@ def posters_out(tmp_path_factory):
         pytest.skip("missing posters pptx")
     if not (render._powerpoint_available() or render._find_soffice()):
         pytest.skip("no PPTX renderer")
-    out = render.render(POSTERS, tmp_path_factory.mktemp("out"), dpi=150, max_px=8000)
+    out = render.render(POSTERS, CACHE, dpi=150, max_px=8000)
     extract_text.extract(out)
     return out
 
@@ -117,7 +122,7 @@ def genai_pair(tmp_path_factory):
         pytest.skip("missing GenAI exports")
     if not render._powerpoint_available():
         pytest.skip("needs PowerPoint")
-    root = tmp_path_factory.mktemp("genai")
+    root = CACHE
     out = {}
     for src in (pptx, pdf):
         d = render.render(src, root)
@@ -212,7 +217,18 @@ def test_print_size_parsing():
         font_size.parse_print_size("A0")
 
 
-def test_poster_font_size(posters_out):
+def _without_ocr(src, tmp_path):
+    """Copy of a cached output folder without OCR results (tests of PDF-text-only behaviour)."""
+    import shutil
+    d = tmp_path / src.name
+    shutil.copytree(src, d)
+    for f in ("ocr.json", "font_size.json", "contrast.json", "scorecard.md", "scorecard.json"):
+        (d / f).unlink(missing_ok=True)
+    return d
+
+
+def test_poster_font_size(posters_out, tmp_path):
+    posters_out = _without_ocr(posters_out, tmp_path)
     full = load(font_size.measure(posters_out).parent, "font_size.json")
     assert full["items"]["FS-1"]["level"] == 3 and full["findings"] == []
     assert any(n["code"] == "FS-PRINT-SIZE" for n in full["notices"])
@@ -227,7 +243,7 @@ def ael_pptx(tmp_path_factory):
     src = AEL.with_suffix(".pptx")
     if not src.exists() or not render._powerpoint_available():
         pytest.skip("needs AEL pptx and PowerPoint")
-    d = render.render(src, tmp_path_factory.mktemp("ael"))
+    d = render.render(src, CACHE)
     extract_text.extract(d)
     font_size.measure(d)
     return d
@@ -237,7 +253,7 @@ def test_footers_are_supporting_and_hidden_not_scored(ael_pptx):
     r = load(ael_pptx, "font_size.json")
     assert r["items"]["FS-2"]["units"] == 81  # 98 slides - 17 hidden, all with the footer
     fs2 = next(f for f in r["findings"] if f["id"] == "FS-2")
-    assert "(footer)" in fs2["summary"]
+    assert "footers (81 slides)" in fs2["details"]
     body_smallest = [u["body"]["smallest"]["text"] for u in r["units"] if "body" in u]
     assert "Clif Kussmaul" not in body_smallest
 
@@ -252,7 +268,8 @@ def test_invisible_text_is_not_scored(genai_pair):
 def test_text_kinds_named_in_findings(ael_pptx):
     r = load(ael_pptx, "font_size.json")
     fs1 = next(f for f in r["findings"] if f["id"] == "FS-1")
-    assert "bullets" in fs1["summary"] and "labels" in fs1["summary"]
+    assert "bullets" in fs1["summary"] and "short labels" in fs1["summary"]
+    assert "comfortable reading size (about 22 pt in this deck)" in fs1["headline"]
     kinds = {u["page"]: u["body"]["smallest"]["kind"] for u in r["units"] if "body" in u}
     assert kinds[13] == "bullet"  # "●interest in math"
     assert kinds[20] == "label"   # "Partner  Worksheet Highlight  Read"
@@ -261,3 +278,196 @@ def test_text_kinds_named_in_findings(ael_pptx):
 def test_substitute_font_named(genai_pair):
     r = load(font_size.measure(genai_pair["pptx"]).parent, "font_size.json")
     assert any("substitute for Gill Sans" in f["summary"] for f in r["findings"])
+
+
+# ---------- render cache ----------
+
+def test_render_cache_reuse_and_force(tmp_path):
+    pdf = GENAI.with_suffix(".pdf")
+    if not pdf.exists():
+        pytest.skip("missing GenAI pdf")
+    d = render.render(pdf, tmp_path, max_px=600)
+    first = load(d, "manifest.json")
+    (d / "text.json").write_text("{}", encoding="utf-8")
+    assert render.render(pdf, tmp_path, max_px=600) == d
+    assert load(d, "manifest.json")["rendered_at"] == first["rendered_at"]  # reused
+    assert (d / "text.json").exists()  # downstream results kept on reuse
+    render.render(pdf, tmp_path, max_px=500)  # different settings: re-rendered
+    assert load(d, "manifest.json")["cache_key"] != first["cache_key"]
+    assert not (d / "text.json").exists()  # stale downstream results removed
+    k = load(d, "manifest.json")["cache_key"]
+    render.render(pdf, tmp_path, max_px=500, force=True)
+    assert load(d, "manifest.json")["cache_key"] == k
+
+
+# ---------- rubric and scorecard ----------
+
+def test_default_rubric_parses():
+    sections, items = scorecard.load_rubric()
+    assert sections["Text size"]["weight"] == 3 and sections["Format"]["weight"] == 1
+    assert items["FS-1"]["type"] == "measured" and items["CN-1"]["type"] == "judged"
+    assert items["FS-1"]["name"] == "Body text size" and items["FS-1"]["weight"] == 3
+    assert set(items["CN-1"]["levels"]) == {1, 2, 3, 4}
+
+
+def test_context_rubric_overrides(tmp_path):
+    ctx = tmp_path / "course.md"
+    ctx.write_text("## Sections\n\n| section | weight |\n|---|---|\n| Content | 5 |\n\n"
+                   "## Judged items\n\n### CN-1 Key ideas are identifiable\n- weight: 4\n"
+                   "- Level 4: Course version.\n\n### FM-9 Has an objectives slide\n"
+                   "- section: Format\n- weight: 1\n", encoding="utf-8")
+    sections, items = scorecard.load_rubric([ctx])
+    assert sections["Content"]["weight"] == 5
+    assert items["CN-1"]["weight"] == 4 and items["CN-1"]["levels"][4] == "Course version."
+    assert items["CN-1"]["levels"][1].startswith("No clear key ideas")  # untouched fields kept
+    assert items["FM-9"]["type"] == "judged" and items["FM-9"]["section"] == "Format"
+
+
+def test_scoring_math():
+    sections = {"A": {"weight": 3}, "B": {"weight": 1}, "C": {"weight": 2}}
+    items = {"a1": {"id": "a1", "name": "A one", "section": "A", "weight": 3, "type": "measured"},
+             "a2": {"id": "a2", "name": "A two", "section": "A", "weight": 1, "type": "measured"},
+             "b1": {"id": "b1", "name": "B one", "section": "B", "weight": 1, "type": "judged"},
+             "c1": {"id": "c1", "name": "C one", "section": "C", "weight": 1, "type": "measured"}}
+    res = {"a1": {"level": 2, "confidence": "high", "headline": "x", "count": 5},
+           "a2": {"level": 1, "confidence": "high", "headline": "y", "count": 9},
+           "b1": {"level": 4, "confidence": "low", "headline": None, "count": 0}}
+    sc = scorecard.score(sections, items, res)
+    assert sc["sections"][0]["score"] == 1.8           # (3*2 + 1*1) / 4 = 1.75
+    assert sc["overall"] == pytest.approx((3 * 1.75 + 1 * 4) / 4, abs=0.05)
+    assert sc["not_assessed_sections"] == ["C"]
+    assert [i["id"] for i in sc["issues"]] == ["a1", "a2"]  # 3*3/4*2=4.5 > 3*1/4*3=2.25
+
+
+def test_scorecard_with_judgment(ael_pptx, tmp_path):
+    d = _without_ocr(ael_pptx, tmp_path)  # this test covers size (PDF text) + judged items
+    font_size.measure(d)
+    (d / "judgments.json").write_text(json.dumps({
+        "key_ideas": ["Active learning beats lecture", "Use structured activities"],
+        "items": [{"id": "CN-1", "level": 3, "confidence": "medium",
+                   "headline": "Two key ideas are signaled only in the closing slides.",
+                   "pages": [90, 95]},
+                  {"id": "FS-1", "level": 1}]}), encoding="utf-8")
+    md = scorecard.build(d).read_text(encoding="utf-8")
+    assert "| **Text size** | **1.8** |" in md
+    assert "| &emsp;Body text size | 2 |" in md
+    assert "| **Content** (judged) | **3.0** |" in md
+    assert "1. **Body text size** (2 of 4, high confidence):" in md  # names, not just IDs
+    assert "For example: slides 90, 95." in md
+    assert "'FS-1' is not a judged item" in md  # agent can't override measured items
+    assert "Active learning beats lecture" in md
+    sc = load(d, "scorecard.json")
+    assert sc["items_assessed"] == 3 and "Contrast" in sc["not_assessed_sections"]
+
+
+# ---------- contrast ----------
+
+def _ratio(a, b):
+    return float(contrast.contrast_ratio(contrast.rel_luminance(contrast.hex_rgb(a)),
+                                         contrast.rel_luminance(contrast.hex_rgb(b))))
+
+
+def test_contrast_math():
+    assert _ratio("#000000", "#ffffff") == pytest.approx(21.0)
+    assert _ratio("#767676", "#ffffff") == pytest.approx(4.54, abs=0.01)  # classic AA grey
+    assert contrast.show_ratio(4.4999) == "4.49:1"  # truncated, never rounded up
+    assert contrast.level_for(4.49, large=False) == 2 and contrast.level_for(4.5, large=False) == 3
+    assert contrast.level_for(3.0, large=True) == 3 and contrast.level_for(2.99, large=True) == 1
+    assert contrast.level_for(7.0, large=False) == 4
+
+
+def _synthetic(fg, bg, noisy=False):
+    import numpy as np
+    img = np.zeros((40, 200, 3), dtype=np.int16)
+    img[:] = contrast.hex_rgb(bg)
+    if noisy:  # left half much lighter: a "photo" background, worse for white text
+        img[:, :100] = contrast.hex_rgb("#e0e0e0")
+    for x in range(20, 180, 12):  # glyph strokes
+        img[8:32, x:x + 4] = contrast.hex_rgb(fg)
+    return img
+
+
+def test_sample_span_uniform_and_complex():
+    import numpy as np
+    r = contrast.sample_span(_synthetic("#0097a7", "#ffffff"), (0, 0, 200, 40),
+                             contrast.hex_rgb("#0097a7"), 1.0)
+    assert r["ratio"] == pytest.approx(_ratio("#0097a7", "#ffffff"), abs=0.01)
+    assert r["visible"] and not r["complex_bg"]
+    r2 = contrast.sample_span(_synthetic("#ffffff", "#808080", noisy=True), (0, 0, 200, 40),
+                              contrast.hex_rgb("#ffffff"), 1.0)
+    assert r2["complex_bg"]
+    assert r2["ratio"] < _ratio("#ffffff", "#808080")  # near-worst case, not the light half
+    blank = np.full((40, 200, 3), 255, dtype=np.int16)  # text color absent: covered or effects
+    r3 = contrast.sample_span(blank, (0, 0, 200, 40), contrast.hex_rgb("#202020"), 1.0)
+    assert not r3["visible"]
+
+
+def test_poster_low_contrast_found(posters_out):
+    r = load(contrast.measure(posters_out).parent, "contrast.json")
+    f = next(f for f in r["findings"] if f["id"] == "CT-1")
+    assert "1.64:1, #ffc000 on #ffffff" in f["details"]
+    assert "image, gradient" not in f["details"]  # neighbouring lines aren't "background"
+
+
+def test_link_contrast_exact(ael_pptx):
+    r = load(contrast.measure(ael_pptx).parent, "contrast.json")
+    links = [u["supporting"]["worst"] for u in r["units"]
+             if "supporting" in u and u["supporting"]["worst"]["fg"] == "#0097a7"]
+    assert links and all(w["ratio"] == pytest.approx(3.509, abs=0.01) for w in links)
+    assert all(w["reason"] == "citation" and w["level"] == 2 for w in links)
+    # Slide 19: body text overflows into the footer, so the footer is "over other text".
+    s19 = next(u for u in r["units"] if u["page"] == 19)["supporting"]["worst"]
+    assert s19["complex_bg"] and s19["level"] == 1
+    md = scorecard.build(ael_pptx).read_text(encoding="utf-8")
+    assert "| **Contrast** |" in md and "| &emsp;Body text contrast | 3 |" in md
+
+
+# ---------- OCR (text in images and shapes) ----------
+
+needs_ocr = pytest.mark.skipif(not ocr.ocr_available(), reason="Windows OCR not available")
+
+
+def test_ocr_helpers():
+    assert ocr.cap_px("Hello", 100) == pytest.approx(95)     # cap/ascender, no descender
+    assert ocr.cap_px("Happy", 100) == pytest.approx(70)     # ascender to descender
+    assert ocr.cap_px("one", 100) == pytest.approx(140)      # x-height only
+    assert ocr.real_line([{"text": "Analytical"}, {"text": "xQz"}])
+    assert ocr.real_line([{"text": "91-100"}])
+    assert not ocr.real_line([{"text": "rwentOry"}, {"text": "x1Q"}])
+
+
+def test_infer_text_color():
+    img = _synthetic("#ffffff", "#2050a0")  # white strokes on blue
+    fg = contrast.infer_text_color(img, (0, 0, 200, 40))
+    assert contrast.rgb_hex(fg) == "#ffffff"
+
+
+def test_glyph_clusters_find_rotated_labels(posters_out):
+    import pymupdf
+    doc = pymupdf.open(posters_out / "source.pdf")
+    assert len(ocr.glyph_clusters(doc[0])) == 1  # the chart's rotated axis labels
+    assert ocr.glyph_clusters(doc[1]) == []
+
+
+@needs_ocr
+def test_ocr_reads_rotated_axis_labels(posters_out):
+    r = load(ocr.run(posters_out).parent, "ocr.json")
+    rotated = sorted(w["text"] for w in r["words"] if w["rotation"])
+    assert rotated == sorted(["0-50", "51-60", "61-70", "71-80", "81-90", "91-100"])
+    # 36 pt Segoe UI: cap height 0.70 em = 25.2 pt
+    assert all(w["cap_pt"] == pytest.approx(25.2, rel=0.05) for w in r["words"] if w["rotation"])
+    assert r["unread"] == []
+
+
+@needs_ocr
+def test_image_text_measured(ael_pptx):
+    ocr.run(ael_pptx)
+    r = load(font_size.measure(ael_pptx).parent, "font_size.json")
+    s79 = next(u for u in r["units"] if u["page"] == 79)["body"]["smallest"]
+    assert s79.get("ocr") and s79["level"] == 1  # tiny Bloom's verbs infographic
+    assert any(n["code"] == "OCR-FOUND" for n in r["notices"])
+    fs1 = next(f for f in r["findings"] if f["id"] == "FS-1")
+    assert fs1["confidence"] == "medium" and "text in images or shapes" in fs1["details"]
+    c = load(contrast.measure(ael_pptx).parent, "contrast.json")
+    c79 = next(u for u in c["units"] if u["page"] == 79)["body"]["worst"]
+    assert c79.get("ocr") and c79["level"] == 1  # white heading on bright cyan

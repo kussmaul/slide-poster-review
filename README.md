@@ -4,8 +4,9 @@ An [Agent Skill](https://agentskills.io) that reviews slide decks and posters ag
 produces a scorecard. It measures text size, contrast, color use, and readability, and adds judged
 items such as format and content. It reports issues but never rewrites your content.
 
-**Status:** work in progress. The rendering pipeline and the text-size measure work. Contrast,
-color, readability, the rubrics, and the scorecard are still to come (see [QUEUE.md](QUEUE.md)).
+**Status:** early version. It rates text size and text contrast, including text inside images
+(measured), and whether key ideas are identifiable (judged by the agent), and produces a scorecard.
+Color and readability are next (see [QUEUE.md](QUEUE.md)).
 
 ## What you can give it
 
@@ -68,11 +69,54 @@ viewers with weaker eyesight works for everyone.
 
 > FS-1: 26 slides have body text (bullets 11, labels 6, sub-bullets 4, chart/table text 3, …) below L3, e.g. 20, 21, 96; smallest 12 pt Georgia (8.8′)
 
-**What isn't measured yet:**
-- Text inside images.
-- Text that the file draws as shapes, such as rotated chart labels. That needs OCR, which is planned.
+**Text in images and shapes** (screenshots, infographics, chart images, rotated chart labels) is
+found with OCR. Windows' built-in OCR is used; on other systems it is skipped with a note.
+- It is measured like other body text and labeled "text in images or shapes".
+- Its size is estimated from the OCR word boxes. On test slides the estimate was within about ±10%
+  of the true size. Findings that depend on it are marked medium confidence.
+- Its contrast is compared against the typical background in each word's box. The colors are
+  estimates, so issues give an approximate ratio without naming colors.
+- Rotated text (e.g. 45° axis labels) is read by rotating those areas and trying OCR again.
+  Areas that look like text but still can't be read are listed for checking by eye.
 - Text too small to see at all (under 1′), which is usually hidden metadata, e.g. from embedded
-  videos. It is listed but not scored.
+  videos, is listed but not scored.
+
+## How contrast is rated
+
+Contrast is the WCAG 2.x ratio between the text color and the background actually behind it,
+sampled from the rendered page. It ranges from 1:1 (invisible) to 21:1 (black on white).
+
+| Level | Normal text | Large text |
+|---|---|---|
+| Level 4 | 7:1 or more (WCAG AAA) | 4.5:1 or more |
+| Level 3 | 4.5:1 or more (WCAG AA) | 3:1 or more |
+| Level 2 | 3:1 or more | — |
+| Level 1 | below 3:1 | below 3:1 |
+
+- **"Large" text.** WCAG defines it as 18 pt, or 14 pt bold, for a page read at arm's length.
+  Here that is converted to the same visual angle at the viewing distance: a cap height of 21.5′,
+  or 16.7′ for bold. At 8H that is about 39 pt, so mostly titles.
+- **Ratios aren't rounded.** 4.49:1 fails 4.5:1. They are shown truncated, e.g. 4.49:1.
+- **Text over a photo, gradient, or other text** is rated by a near-worst case: the 10th percentile
+  of contrast across its background. It is marked medium confidence. Text that overflows into a
+  footer shows up this way too.
+- **Scoring.** As for text size, each slide is rated by its worst text, and the deck gets the level
+  that 90% of slides reach. Body and supporting text are separate items.
+
+## The scorecard
+
+- The scorecard has a summary row for each **section** (e.g. "Text size: 1.8 of 4"), the weighted
+  average of its items. Below it, each **item** is listed by name with its level (e.g. "Body text
+  size: Level 2").
+- The **overall** score is the weighted average of the sections. Measured accessibility sections
+  (text size, contrast) weigh more.
+- Items that haven't been assessed are listed, not counted.
+- **Issues** are ranked by how much they cost: section weight × the item's share of its section ×
+  how far it is below Level 4. Each issue gives the item name, level, and confidence, then a second
+  line of details.
+- The rubric is [rubrics/default.md](skill/slide-poster-review/rubrics/default.md). An organization,
+  conference, course, or lab can supply a context rubric that changes weights or level
+  descriptions, or adds items, by repeating item IDs.
 
 ## Repository layout
 
@@ -83,6 +127,7 @@ skill/slide-poster-review/   the skill itself (this folder is what gets installe
   rubrics/                   rubric items and viewing presets
   references/                evidence and standards notes
 tests/                       pytest suite (uses local files in test-inputs/, not in git)
+tools/                       dev tools, e.g. review_test_inputs.py (not shipped)
 DESIGN.md                    design brief
 QUEUE.md                     task queue
 ```
@@ -92,9 +137,18 @@ QUEUE.md                     task queue
 ```
 py -3.14 -m venv .venv
 .venv/Scripts/python -m pip install -r requirements-dev.txt
-.venv/Scripts/python -m pytest -q tests
+.venv/Scripts/python -m pytest -q tests   # renders are cached in .cache/; a repeat run takes seconds
 .venv/Scripts/agentskills validate skill/slide-poster-review
 ```
+
+To review everything in `test-inputs/` and read the results as rendered Markdown:
+
+```
+.venv/Scripts/python tools/review_test_inputs.py   # scorecards -> test-outputs/*.md, index.md
+```
+
+Intermediate files (PDF, page images, JSON) go to `.cache/work/`. Open a scorecard in VS Code's
+Markdown preview (Ctrl+Shift+V) to see the tables.
 
 To run the pipeline by hand:
 
@@ -102,4 +156,9 @@ To run the pipeline by hand:
 python skill/slide-poster-review/scripts/render.py deck.pptx --out output
 python skill/slide-poster-review/scripts/extract_text.py output/deck-pptx
 python skill/slide-poster-review/scripts/font_size.py output/deck-pptx
+# the agent writes output/deck-pptx/judgments.json (see SKILL.md), then:
+python skill/slide-poster-review/scripts/scorecard.py output/deck-pptx
 ```
+
+`render.py` reuses an earlier render when the input file, settings, and installed fonts are unchanged.
+Use `--force` to render again.

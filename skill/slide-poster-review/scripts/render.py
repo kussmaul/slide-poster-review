@@ -12,12 +12,14 @@ Output goes to OUTPUT_ROOT/<stem>-<ext>/, e.g. output/deck-pptx/ (default OUTPUT
 
 PPTX -> PDF backends (auto order): PowerPoint via COM (Windows), then LibreOffice if already
 installed. If neither is available, export a PDF and pass that instead.
+A previous render of the same input and settings is reused (see cache_key); --force re-renders.
 Exit codes: 0 ok, 2 bad input / unsupported, 3 no backend or conversion failed.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -34,6 +36,7 @@ PPT_EXTS = {".pptx", ".ppt", ".pptm", ".odp"}
 OUT_OF_SCOPE = {".docx", ".doc", ".odt", ".key"}
 POSTER_MIN_INCHES = 20  # longest side at or above this => guess "poster"
 MANIFEST_VERSION = 1
+RENDER_VERSION = 1  # bump when render output changes, to invalidate cached renders
 
 
 class RenderError(Exception):
@@ -341,8 +344,32 @@ def font_notice(src: Path, source: dict, fonts: dict) -> dict | None:
 
 # ---------- main pipeline ----------
 
+def cache_key(src: Path, dpi: int, max_px: int, backend: str) -> str:
+    """Everything a render depends on: input bytes, settings, code version, installed fonts."""
+    h = hashlib.sha256()
+    with open(src, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    parts = [h.hexdigest(), str(dpi), str(max_px), backend, str(RENDER_VERSION)]
+    if src.suffix.lower() != ".pdf":
+        # Installing a missing font changes the render (see FONT-SUB).
+        parts.append(hashlib.sha256("|".join(sorted(installed_font_families() or [])).encode()).hexdigest())
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:32]
+
+
+def _cached(out_dir: Path, key: str) -> bool:
+    try:
+        m = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return (m.get("cache_key") == key and (out_dir / m["pdf"]).exists()
+            and all((out_dir / p["image"]).exists() for p in m["pages"]))
+
+
 def render(src: Path, out_root: Path, dpi: int = 150, max_px: int = 8000,
-           backend: str = "auto") -> Path:
+           backend: str = "auto", force: bool = False) -> Path:
+    """Render src into out_root/<stem>-<ext>/. Reuses a previous render of the same input and
+    settings unless force=True."""
     src = src.resolve()
     if not src.exists():
         raise RenderError(f"Input not found: {src}", 2)
@@ -353,8 +380,15 @@ def render(src: Path, out_root: Path, dpi: int = 150, max_px: int = 8000,
         raise RenderError(f"Unsupported input type: {ext}", 2)
 
     out_dir = out_root / f"{src.stem}-{ext[1:]}"  # same deck in several formats must not collide
+    key = cache_key(src, dpi, max_px, backend)
+    if not force and _cached(out_dir, key):
+        return out_dir
     pages_dir = out_dir / "pages"
     out_dir.mkdir(parents=True, exist_ok=True)
+    for stale in ("manifest.json", "text.json", "outline.md", "ocr.json", "font_size.json",
+                  "contrast.json", "scorecard.md", "scorecard.json"):
+        (out_dir / stale).unlink(missing_ok=True)  # downstream results belong to the old render
+    shutil.rmtree(out_dir / "ocr", ignore_errors=True)
     if pages_dir.exists():
         shutil.rmtree(pages_dir)
     pages_dir.mkdir()
@@ -423,6 +457,7 @@ def render(src: Path, out_root: Path, dpi: int = 150, max_px: int = 8000,
 
     manifest = {
         "manifest_version": MANIFEST_VERSION,
+        "cache_key": key,
         "source": str(src),
         "source_type": ext[1:],
         "source_app": source,
@@ -453,9 +488,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dpi", type=int, default=150)
     ap.add_argument("--max-px", type=int, default=8000, help="cap on the longest image side")
     ap.add_argument("--backend", choices=["auto", "powerpoint", "libreoffice"], default="auto")
+    ap.add_argument("--force", action="store_true", help="re-render even if a matching render exists")
     a = ap.parse_args(argv)
     try:
-        out = render(a.input, a.out, a.dpi, a.max_px, a.backend)
+        out = render(a.input, a.out, a.dpi, a.max_px, a.backend, a.force)
     except RenderError as e:
         print(f"error: {e}", file=sys.stderr)
         return e.code

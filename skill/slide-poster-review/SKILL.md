@@ -1,18 +1,89 @@
 ---
 name: slide-poster-review
-description: Reviews slide decks and posters (PPTX, Google Slides exports, PDF) against accessibility and presentation rubrics and produces a scorecard with a ranked issue list. Measures font size by viewing distance, color contrast (WCAG), color-only cues, and readability for the audience. Use when the user asks to review, check, critique, or score slides, a presentation, a deck, or a poster.
-compatibility: Requires Python 3.10+ with pymupdf, python-pptx, and fonttools (requirements.txt). Rendering .pptx needs PowerPoint (Windows) or LibreOffice; without either, accepts PDF exports only.
+description: Reviews slide decks and posters (PPTX, Google Slides exports, PDF) against accessibility and presentation rubrics and produces a scorecard with a ranked issue list. Measures text size by viewing distance and text contrast (WCAG), including text inside images (OCR), and rates whether key ideas are identifiable; color and readability checks are planned. Use when the user asks to review, check, critique, or score slides, a presentation, a deck, or a poster.
+compatibility: Requires Python 3.10+ with pymupdf, python-pptx, and fonttools (requirements.txt). Rendering .pptx needs PowerPoint (Windows) or LibreOffice; without either, accepts PDF exports only. OCR uses Windows' built-in engine; elsewhere it is skipped with a notice.
 metadata:
-  status: "draft - pipeline only; see task 23 in QUEUE.md"
+  status: "early version: text size, contrast, key ideas"
 ---
 
 # Slide & poster review
 
-Work in progress. Only the rendering pipeline exists so far.
+Produce a scorecard for a slide deck or poster: section scores, then a ranked list of issues.
+**Report issues only. Never rewrite content or suggest specific replacement wording.** Users
+tend to accept suggested edits without thinking, and the author knows their content best.
 
-1. Render: `python scripts/render.py INPUT --out OUTPUT_ROOT`. Show the user every notice
-   printed to stderr (also in `manifest.json` → `notices`).
-2. Extract text: `python scripts/extract_text.py OUTPUT_DIR` → `text.json`.
-3. Font size: `python scripts/font_size.py OUTPUT_DIR [--print-size 48x36in]` → `font_size.json`.
-   Viewing presets are in [rubrics/presets.md](rubrics/presets.md); evidence for them is in
-   [references/legibility-thresholds.md](references/legibility-thresholds.md).
+Paths below are relative to this skill's folder. Write all output to a working folder outside
+the skill, e.g. `./slide-review/` in the user's current directory (called `OUT` below).
+If a script fails because a module is missing, run `pip install -r requirements.txt` once.
+
+## 1. Intake
+
+Ask only for what you don't already know, in one short message:
+- **The file.** PPTX gives the most complete review. Google Slides can be downloaded as .pptx or PDF.
+  PDFs need one slide or poster per page.
+- **Posters: the print size**, e.g. 48x36in or 120x90cm. Without it, the file's page size is assumed.
+- **Slides: the room**, only if it's large (big room, small screen). Then use `--preset slides-large-room`.
+- **A context rubric** from an organization, conference, course, or lab, if they have one.
+- **An abstract or learning objectives**, if available; they help judge key ideas.
+
+## 2. Render and measure
+
+Run these in order. Each prints the next folder or a summary.
+
+```
+python scripts/render.py INPUT --out OUT            # prints OUTPUT_DIR; notices go to stderr
+python scripts/extract_text.py OUTPUT_DIR           # text.json, outline.md
+python scripts/ocr.py OUTPUT_DIR                    # text in images/shapes (Windows; skipped elsewhere)
+python scripts/font_size.py OUTPUT_DIR [--print-size 48x36in] [--preset NAME]
+python scripts/contrast.py OUTPUT_DIR  [--print-size 48x36in] [--preset NAME]   # same options
+```
+
+- If `render.py` fails (exit code 2 or 3), tell the user its message. It explains what to do,
+  e.g. export a PDF, or export one slide per page instead of a handout.
+- Pass every notice from `render.py` on to the user. These say what this file format can't show,
+  e.g. a Google Slides PDF that includes skipped slides. The scorecard repeats them.
+- Viewing presets are in [rubrics/presets.md](rubrics/presets.md). The evidence behind them is in
+  [references/legibility-thresholds.md](references/legibility-thresholds.md).
+
+## 3. Judge
+
+Judged items are in the "Judged items" section of [rubrics/default.md](rubrics/default.md) and of
+any context rubric. For each one:
+
+1. Read `OUTPUT_DIR/outline.md`, the text of every slide with hidden slides marked. Look at a few
+   page images in `OUTPUT_DIR/pages/` where layout or emphasis matters: the title slide, any
+   summary or conclusion slides, and slides whose role is unclear from the text.
+2. **Key ideas (for CN-1).** Infer the 2–5 key ideas from the abstract or objectives if given,
+   otherwise from the content. If you can't identify them confidently, say so: that is itself a
+   finding.
+3. Choose the level whose description in the rubric fits best. Use `high` confidence only when
+   the evidence is clear on several slides. Ignore hidden slides.
+4. Write the result as `OUTPUT_DIR/judgments.json`:
+
+```json
+{"key_ideas": ["...", "..."],
+ "items": [{"id": "CN-1", "level": 3, "confidence": "medium",
+            "headline": "One sentence describing the issue, not a fix.",
+            "details": "Optional second sentence with specifics.",
+            "pages": [4, 9, 12]}]}
+```
+
+Describe what is wrong, not how to fix it: "The conclusion slide lists topics rather than
+findings", not "Change the conclusion to say…".
+
+## 4. Scorecard
+
+```
+python scripts/scorecard.py OUTPUT_DIR [--rubric CONTEXT.md]
+```
+
+Show the user the contents of `OUTPUT_DIR/scorecard.md`. Then briefly offer details on any issue,
+e.g. which slides are affected (`font_size.json` → `findings[].units`). Don't add rewrites.
+
+## Rules
+
+- One input file, one review. Never merge results from different formats of the same deck.
+  Use the notices to say what another format would add.
+- Every finding carries a confidence level. Measured items get theirs from the scripts.
+- A measurement that couldn't be made, e.g. text inside images, is noted for checking by eye,
+  not silently skipped.
