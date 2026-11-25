@@ -11,12 +11,23 @@ Writes, for each deck, NAME.pptx and NAME.expected.json:
     flaws-text.pptx     16:9 slides: sentence length, acronyms, rare words, plus controls
     flaws-structure.pptx 16:9 slides with real title placeholders: colliding and cut-off text,
                         title hierarchy, alt text, missing titles, reading order, plus controls
+    flaws-4x3.pptx      4:3 slides with a footer and slide number on every slide: text size
+                        (same levels as 16:9, since both are 7.5 in high), footers as supporting
+                        text, and bullets that overflow their box into the footer
+    flaws-poster-half.pptx  24x18 in poster file printed at 48x36 in ("print_size"): sizes
+                        double when printed
+    judged-clear.pptx, judged-poor.pptx  the same short talk done well and badly, for evals of
+                        the agent's judged items (tools/eval_judgments.py)
 
 expected.json: {"deck", "kind", "expect": [...]}, each expectation
     {"measure": "font_size" | "contrast" | "color" | "readability", "page": n,
      "key": "body" | "supporting" | "CO-1" | "CO-2" | "RD-2" | "LY-1" | "LY-2",
      "level": n  (or "max_level": n), "marker": "text in the block" (posters), "note": "..."}
     "items" (optional): {item id: level} for deck-level items, e.g. RD-1, RD-3, AC-1.
+"print_size" (optional): passed to font_size and contrast, as the user would give it.
+"judged" (optional): {item id: [lowest, highest] acceptable level} for the agent's judgments,
+and "key_ideas": one keyword list per key idea (a stated key idea matches if it contains any
+keyword). Checked by tools/eval_judgments.py, not by the tests.
 "level" is exact; "max_level" means "this flaw is found" where the exact level depends on
 rendering (e.g. OCR). Hidden slides are listed under "hidden" and must not be scored.
 
@@ -506,12 +517,206 @@ def make_structure(out: Path, tmp: Path) -> dict:
             "items": {"AC-1": 2, "AC-2": 3, "AC-3": 2}}
 
 
+def make_4x3(out: Path, tmp: Path) -> dict:
+    prs, exp = Presentation(), []  # python-pptx default: 10 x 7.5 in (4:3)
+    assert (prs.slide_width, prs.slide_height) == (Inches(10), Inches(7.5))
+
+    def e(page, measure, key, level, note=""):
+        exp.append({"measure": measure, "page": page, "key": key, "level": level, "note": note})
+
+    def footer(s, n):
+        text(s, 0.5, 6.85, 6, 0.5, ["Generated test deck, 4:3 slides"], size=20)
+        text(s, 8.8, 6.85, 0.8, 0.5, [str(n)], size=20)
+        e(n, "font_size", "supporting", 2, "20 pt footer and slide number")
+
+    def head(s, title):
+        text(s, 0.5, 0.4, 9, 1.2, [title], size=44)
+
+    s = blank(prs)
+    text(s, 0.6, 2.2, 8.8, 1.5, ["Generated test deck: 4:3 slides"], size=54, bold=True)
+    text(s, 0.6, 4.0, 8.8, 1.0, ["Footers on every slide"], size=40)
+    footer(s, 1)
+    e(1, "font_size", "body", 4)
+
+    s = blank(prs)
+    head(s, "Control: large black text")
+    text(s, 0.6, 2.0, 8.8, 4.0, bullets(["Body text at 40 points", "Black on white"]), size=40)
+    footer(s, 2)
+    e(2, "font_size", "body", 4, "40 pt: the same level as on 16:9 slides of the same height")
+    e(2, "contrast", "body", 4)
+    e(2, "contrast", "supporting", 4, "black footer")
+    e(2, "layout", "LY-1", 4, "the footer doesn't collide")
+
+    for page, size, level in ((3, 32, 3), (4, 22, 2), (5, 14, 1)):
+        s = blank(prs)
+        head(s, f"Bullets at {size} points")
+        text(s, 0.6, 2.0, 8.8, 4.0, bullets(["The first point on this slide",
+                                             "A second point with more words",
+                                             "A third and final point"]), size=size)
+        footer(s, page)
+        e(page, "font_size", "body", level, f"{size} pt bullets")
+
+    s = blank(prs)
+    head(s, "Bullets overflow into the footer")
+    text(s, 0.6, 1.8, 8.8, 4.0, bullets([f"Point number {i} on a crowded slide" for i in range(1, 13)]),
+         size=28)
+    footer(s, 6)
+    e(6, "layout", "LY-1", 1, "12 bullets overflow a 4 in box and run over the footer")
+
+    s = blank(prs, hidden=True)
+    head(s, "Hidden slide with tiny text")
+    text(s, 0.6, 2.0, 8.8, 3.0, ["This slide is hidden and must not be scored"], size=8, color="#bbbbbb")
+
+    save(prs, out / "flaws-4x3.pptx")
+    return {"deck": "flaws-4x3.pptx", "kind": "slides", "hidden": [7], "expect": exp,
+            "known_gaps": ["text overflowing its own box without touching other text (task 26)"]}
+
+
+def make_poster_half(out: Path, tmp: Path) -> dict:
+    prs = Presentation()
+    prs.slide_width, prs.slide_height = Inches(24), Inches(18)
+    s = blank(prs)
+    exp = []
+
+    def e(marker, measure, key, level, note=""):
+        exp.append({"measure": measure, "page": 1, "marker": marker, "key": key, "level": level,
+                    "note": note})
+
+    text(s, 0.5, 0.4, 23, 1.5, ["Half-size poster file, printed at 48x36 in"], size=55, bold=True)
+    para = "This block wraps over a few lines so that it reads like part of a real poster."
+    blocks = [((0.5, 2.5), "Introduction at 20 points,", 20, 4),
+              ((8.5, 2.5), "Methods at 16 points,", 16, 3),
+              ((16.5, 2.5), "Results at 11 points,", 11, 2),
+              ((0.5, 9.5), "Details at 7 points,", 7, 1)]
+    for (x, y), marker, size, level in blocks:
+        text(s, x, y, 7, 6, [f"{marker} {2 * size} when printed. {para}"], size=size)
+        e(marker, "font_size", "body", level, f"{size} pt in the file, {2 * size} pt printed")
+    e("Introduction", "contrast", "body", 4)
+    save(prs, out / "flaws-poster-half.pptx")
+    return {"deck": "flaws-poster-half.pptx", "kind": "poster", "hidden": [], "print_size": "48x36in",
+            "expect": exp}
+
+
+# ---------- judged decks: the same short talk, done well and done badly ----------
+
+def _make_3d(ch) -> None:
+    """Turn a 2-D clustered column chart into a 3-D one (python-pptx can't write 3-D charts)."""
+    from lxml import etree
+    C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+    cs = ch._chartSpace
+    chart_el = cs.find(f"{{{C}}}chart")
+    bar = chart_el.find(f"{{{C}}}plotArea/{{{C}}}barChart")
+    bar.tag = f"{{{C}}}bar3DChart"
+    for el in bar.findall(f"{{{C}}}overlap"):
+        bar.remove(el)
+    gap = bar.find(f"{{{C}}}gapWidth")
+    shape = etree.Element(f"{{{C}}}shape", val="box")
+    (gap.addnext(shape) if gap is not None else bar.find(f"{{{C}}}axId").addprevious(shape))
+    view = etree.fromstring(f'<c:view3D xmlns:c="{C}"><c:rotX val="15"/><c:rotY val="20"/>'
+                            '<c:rAngAx val="1"/></c:view3D>')
+    chart_el.find(f"{{{C}}}plotArea").addprevious(view)
+    for tag in ("floor", "sideWall", "backWall"):
+        chart_el.find(f"{{{C}}}plotArea").addprevious(etree.Element(f"{{{C}}}{tag}"))
+
+
+def _scores_chart(slide, colors, three_d=False, axis_min=0, labels=True, axis_titles=True):
+    data = CategoryChartData()
+    data.categories = ["Section 1", "Section 2", "Section 3"]
+    data.add_series("Before", (61, 58, 64))
+    data.add_series("After", (72, 70, 69))
+    ch = slide.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(0.8), Inches(1.7), Inches(11.7),
+                                Inches(5.5), data).chart
+    ch.font.name, ch.font.size = FONT, Pt(20)
+    ch.has_title = False
+    ch.has_legend = True
+    ch.legend.position = XL_LEGEND_POSITION.BOTTOM
+    ch.legend.include_in_layout = False
+    for sr, c in zip(ch.plots[0].series, colors):
+        sr.format.fill.solid()
+        sr.format.fill.fore_color.rgb = rgb(c)
+    if labels:
+        ch.plots[0].has_data_labels = True
+        ch.plots[0].data_labels.font.size = Pt(20)
+    ch.value_axis.minimum_scale = axis_min
+    ch.value_axis.maximum_scale = 100 if axis_min == 0 else None
+    if axis_titles:
+        ch.value_axis.has_title = True
+        ch.value_axis.axis_title.text_frame.text = "Mean quiz score (%)"
+        ch.category_axis.has_title = True
+        ch.category_axis.axis_title.text_frame.text = "Lecture section"
+    if three_d:
+        _make_3d(ch)  # last: python-pptx can't read 3-D plots back
+    return ch
+
+
+def make_judged_clear(out: Path, tmp: Path) -> dict:
+    prs = slides_prs()
+    s = prs.slides.add_slide(prs.slide_layouts[0])
+    s.shapes.title.text = "Short pair discussions raise quiz scores in large classes"
+    s.placeholders[1].text = "A one-semester study in three lecture sections"
+    _titled_layout(prs, "Many students in large lectures fall behind",
+                   ["Few students ask questions", "Quiz scores vary a lot", "We wanted a cheap fix"], body_size=32)
+    _titled_layout(prs, "We added three 2-minute pair talks to each lecture",
+                   ["The teacher asks a question", "Pairs talk for 2 minutes", "A few pairs report back"],
+                   body_size=32)
+    s = _titled_layout(prs, "Quiz scores rose by about 9 points in every section")
+    _scores_chart(s, ["#0072b2", "#e69f00"])
+    _titled_layout(prs, "Students who talked most gained most",
+                   ["We counted turns in each pair", "More turns went with higher scores",
+                    "Quiet students gained too"], body_size=32)
+    _titled_layout(prs, "Summary: three things to remember",
+                   ["Short pair talks raised quiz scores", "They cost about 6 minutes per lecture",
+                    "Talking more went with learning more"], body_size=32)
+    save(prs, out / "judged-clear.pptx")
+    return {"deck": "judged-clear.pptx", "kind": "slides", "hidden": [], "expect": [],
+            "judged": {k: [3, 4] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4")},
+            "key_ideas": [["score", "quiz"],
+                          ["2-minute", "two-minute", "minutes", "cheap", "cost", "low-cost"],
+                          ["talked most", "turns", "more talk", "talking more", "talk more"]]}
+
+
+def make_judged_poor(out: Path, tmp: Path) -> dict:
+    prs = slides_prs()
+    s = prs.slides.add_slide(prs.slide_layouts[0])
+    s.shapes.title.text = "TPS Study"
+    s.placeholders[1].text = "Fall update"
+    _titled_layout(prs, "Background", [
+        "At the end of the day, leveraging peer-mediated metacognitive scaffolding affordances in "
+        "high-enrollment STEM gateway course contexts moves the needle on student learning outcome "
+        "assessment data, as the literature has long touched on, although the jury is still out on "
+        "transfer, so we decided to take a stab at it and see whether it would pan out in our "
+        "departmental ecosystem going forward, notwithstanding the usual institutional headwinds."],
+        body_size=24)
+    _titled_layout(prs, "Methods", [
+        "Three sections (n = 412) in Room 101, Room 220 and the annex", "IRB protocol 2026-117, exempt",
+        "TPS x3 per lecture, ~2 min, clicker Qs from the publisher bank",
+        "Grading: 40% exams, 30% quizzes, 20% labs, 10% participation", "Late policy unchanged from spring",
+        "TA training in week 2 (4 hours)", "Turn-taking coded from audio, kappa = .71",
+        "Parking was a problem in week 5", "Pre/post quizzes, 20 items each",
+        "Next year: maybe a second campus?"], body_size=20)
+    s = _titled_layout(prs, "Results")
+    _scores_chart(s, ["#c05040", "#609040"], three_d=True, axis_min=55, labels=False, axis_titles=False)
+    s = _titled_layout(prs, "Results (cont.)")
+    text(s, 0.8, 1.7, 11.7, 1.0, ["Red sections went up; green ones are the rest."], size=28)
+    for i, c in enumerate(["#c05040", "#609040", "#c05040", "#609040", "#609040", "#c05040"]):
+        b = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.8 + 2 * i), Inches(3.2), Inches(1.7), Inches(1.7))
+        b.fill.solid()
+        b.fill.fore_color.rgb = rgb(c)
+        b.line.fill.background()
+    _titled_layout(prs, "Other", ["Low-hanging fruit: ballpark the ROI on TA FTEs",
+                                  "Circle back re: LMS analytics", "Questions?"], body_size=28)
+    save(prs, out / "judged-poor.pptx")
+    return {"deck": "judged-poor.pptx", "kind": "slides", "hidden": [], "expect": [],
+            "judged": {k: [1, 2] for k in ("CN-1", "CL-1", "DG-1", "CO-3", "RD-4")}}
+
+
 def make_all(out: Path) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / "_assets"
     tmp.mkdir(exist_ok=True)
     paths = []
-    for maker in (make_slides, make_poster, make_color, make_text, make_structure):
+    for maker in (make_slides, make_poster, make_color, make_text, make_structure, make_4x3,
+                  make_poster_half, make_judged_clear, make_judged_poor):
         exp = maker(out, tmp)
         (out / exp["deck"]).with_suffix(".expected.json").write_text(
             json.dumps(exp, indent=2), encoding="utf-8")

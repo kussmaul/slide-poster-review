@@ -172,19 +172,31 @@ def _chart_info(sh) -> dict | None:
         ch = sh.chart
     except Exception:
         return None
-    info = {"chart_type": str(ch.chart_type).split(".")[-1].split(" ")[0],
-            "has_title": bool(ch.has_title), "has_legend": bool(ch.has_legend),
-            "series": len(list(ch.series))}
-    info["is_3d"] = "THREE_D" in info["chart_type"] or "3D" in info["chart_type"]
-    for axis in ("category_axis", "value_axis"):
-        try:
-            info[f"{axis}_title"] = bool(getattr(ch, axis).has_title)
-        except Exception:  # pie and doughnut charts have no axes
-            pass
+    # Read the XML directly: python-pptx can't open some plot types (3-D charts among them).
+    C = "{http://schemas.openxmlformats.org/drawingml/2006/chart}"
+    chart_el = ch._chartSpace.find(f"{C}chart")
+    area = chart_el.find(f"{C}plotArea")
+    plots = [el for el in area if el.tag.endswith("Chart")]
     try:
-        info["data_labels"] = bool(ch.plots[0].has_data_labels)
+        kind = str(ch.chart_type).split(".")[-1].split(" ")[0]
     except Exception:
-        pass
+        kind = plots[0].tag.replace(C, "") if plots else "unknown"  # e.g. 'bar3DChart'
+    info = {"chart_type": kind,
+            "has_title": chart_el.find(f"{C}title") is not None,
+            "has_legend": chart_el.find(f"{C}legend") is not None,
+            "series": sum(len(p.findall(f"{C}ser")) for p in plots)}
+    info["is_3d"] = "THREE_D" in kind or "3D" in kind
+    for axis, tags in (("category_axis", ("catAx", "dateAx")), ("value_axis", ("valAx",))):
+        ax = next((a for t in tags for a in area.findall(f"{C}{t}")), None)
+        if ax is None:  # pie and doughnut charts have no axes
+            continue
+        info[f"{axis}_title"] = ax.find(f"{C}title") is not None
+        if axis == "value_axis":
+            mn = ax.find(f"{C}scaling/{C}min")
+            info["value_axis_min"] = float(mn.get("val")) if mn is not None else None  # None: automatic
+    shown = [d for p in plots for d in p.iter(f"{C}dLbls")
+             for v in d.findall(f"{C}showVal") + d.findall(f"{C}showPercent") if v.get("val") in ("1", "true")]
+    info["data_labels"] = bool(shown)
     return info
 
 

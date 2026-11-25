@@ -44,8 +44,10 @@ def review(src: Path, force: bool) -> tuple[str, str]:
         return (f"# Not reviewed: {src.name}\n\n{e}\n", f"not reviewed: {str(e).split('. ')[0]}")
     extract_text.extract(d)
     ocr.run(d)
-    font_size.measure(d)
-    contrast.measure(d)
+    exp = src.with_suffix(".expected.json")  # generated decks: print size as a user would give it
+    ps = json.loads(exp.read_text(encoding="utf-8")).get("print_size") if exp.exists() else None
+    font_size.measure(d, print_size=ps)
+    contrast.measure(d, print_size=ps)
     color.measure(d)
     readability.measure(d, audience_given=False)
     layout.measure(d)

@@ -625,7 +625,8 @@ def test_accessibility_needs_pptx(genai_pair):
 # ---------- generated decks with known flaws ----------
 
 DECKS = ["flaws-slides.pptx", "flaws-poster.pptx", "flaws-color.pptx", "flaws-text.pptx",
-         "flaws-structure.pptx"]
+         "flaws-structure.pptx", "flaws-4x3.pptx", "flaws-poster-half.pptx",
+         "judged-clear.pptx", "judged-poor.pptx"]  # judged-*: measured checks only; evals in tools/
 
 
 @pytest.fixture(scope="module")
@@ -636,16 +637,17 @@ def generated(tmp_path_factory):
     make_test_decks.make_all(src)  # reproducible bytes, so renders below are cached
     out = {}
     for name in DECKS:
+        exp = json.loads((src / name).with_suffix(".expected.json").read_text(encoding="utf-8"))
         d = render.render(src / name, CACHE)
         extract_text.extract(d)
         ocr.run(d)
-        font_size.measure(d)
-        contrast.measure(d)
+        font_size.measure(d, print_size=exp.get("print_size"))
+        contrast.measure(d, print_size=exp.get("print_size"))
         color.measure(d)
         readability.measure(d)
         layout.measure(d)
         accessibility.measure(d)
-        out[name] = (d, json.loads((src / name).with_suffix(".expected.json").read_text(encoding="utf-8")))
+        out[name] = (d, exp)
     return out
 
 
@@ -691,3 +693,12 @@ def test_color_views_and_scorecard(generated):
     names = {i["name"] for i in sc["issues"]}
     assert {"Colors distinguishable with color-vision deficiency", "Emphasis not by color alone"} <= names
     assert "Meaning doesn't depend on color alone" in {i["name"] for i in sc["not_assessed_items"]}
+
+
+def test_chart_hints_for_data_graphics(generated):
+    poor = load(generated["judged-poor.pptx"][0], "layout.json")["hints"]["charts"]
+    clear = load(generated["judged-clear.pptx"][0], "layout.json")["hints"]["charts"]
+    assert [(c["page"], c["is_3d"], c["value_axis_min"], c["value_axis_title"], c["data_labels"])
+            for c in poor] == [(4, True, 55.0, False, False)]  # 3-D chart read from XML
+    assert [(c["is_3d"], c["value_axis_min"], c["value_axis_title"], c["data_labels"])
+            for c in clear] == [(False, 0.0, True, True)]

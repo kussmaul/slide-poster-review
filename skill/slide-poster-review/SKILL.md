@@ -105,7 +105,8 @@ that competes with the content? A dense slide meant as a handout or reference is
 than a dense slide shown while speaking.
 
 **Data graphics (for DG-1).** Look at slides with charts or tables: `layout.json` → `hints.charts`
-(chart type, 3-D, title, legend, axis titles, data labels; .pptx only) and pictures of charts in
+(chart type, 3-D, title, legend, axis titles, data labels, `value_axis_min`: a set minimum
+above 0 on a bar or column chart truncates the bars; .pptx only) and pictures of charts in
 the page images. Ask: is the message clear, are axes and units labeled, could labels replace the
 legend, does anything distort the data (3-D, truncated axes)? If the deck has no data graphics,
 leave DG-1 out of `judgments.json`.
