@@ -794,3 +794,32 @@ def test_weight_zero_leaves_item_out():
                                            "a2": {"level": 1, "confidence": "high", "headline": "x"}})
     assert sc["overall"] == 4.0 and sc["issues"] == [] and sc["items_total"] == 1
     assert sc["not_assessed_items"] == [] and sc["not_assessed_sections"] == []
+
+
+def test_skill_zip(tmp_path):
+    """The release zip holds one folder, slide-poster-review/, with SKILL.md and no caches."""
+    import zipfile
+    import build_skill_zip
+    names = zipfile.ZipFile(build_skill_zip.build(tmp_path)).namelist()
+    assert "slide-poster-review/SKILL.md" in names and "slide-poster-review/requirements.txt" in names
+    assert all(n.startswith("slide-poster-review/") for n in names)
+    assert not [n for n in names if "__pycache__" in n or n.endswith((".pyc", ".gitkeep"))]
+    assert any(n.startswith("slide-poster-review/assets/cefr/") for n in names)
+
+
+def test_cached_render_follows_moved_source(tmp_path):
+    """A reused render must point at the file as it is now, not where it was first rendered."""
+    import pymupdf
+    import shutil
+    doc = pymupdf.open()
+    doc.new_page(width=720, height=405).insert_text((72, 200), "Moved deck", fontsize=40)
+    first = tmp_path / "a" / "deck.pdf"
+    first.parent.mkdir()
+    doc.save(first)
+    out = tmp_path / "out"
+    render.render(first, out)
+    moved = tmp_path / "b" / "deck.pdf"
+    moved.parent.mkdir()
+    shutil.move(first, moved)
+    d = render.render(moved, out)
+    assert load(d, "manifest.json")["source"] == str(moved.resolve())

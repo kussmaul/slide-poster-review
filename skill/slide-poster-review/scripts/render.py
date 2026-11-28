@@ -382,6 +382,13 @@ def render(src: Path, out_root: Path, dpi: int = 150, max_px: int = 8000,
     out_dir = out_root / f"{src.stem}-{ext[1:]}"  # same deck in several formats must not collide
     key = cache_key(src, dpi, max_px, backend)
     if not force and _cached(out_dir, key):
+        # The key covers the file's content, not its path: a copy or a moved file reuses the render.
+        # Point the manifest at this file, since later steps reread the .pptx from "source".
+        mpath = out_dir / "manifest.json"
+        m = json.loads(mpath.read_text(encoding="utf-8"))
+        if m.get("source") != str(src):
+            m["source"] = str(src)
+            mpath.write_text(json.dumps(m, indent=2), encoding="utf-8")
         return out_dir
     pages_dir = out_dir / "pages"
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -9,7 +9,69 @@ of color, readability, layout, and accessibility metadata (measured), plus key i
 depends on color, language for the audience, cognitive load, and data graphics (judged by the
 agent), and produces a scorecard. Next steps are in [QUEUE.md](QUEUE.md).
 
-## What you can give it
+## Contents
+
+- [How to start](#how-to-start): install, run a review, what you can give it
+- [The scorecard](#the-scorecard)
+- [How ratings work](#how-ratings-work): [text size](#text-size), [contrast](#contrast),
+  [color](#color), [readability](#readability), [layout](#layout),
+  [accessibility metadata](#accessibility-metadata), [content and format](#content-and-format)
+- [For developers](#for-developers): [repository layout](#repository-layout),
+  [development](#development), [releases](#releases)
+
+## How to start
+
+### Install
+
+1. **Download [slide-poster-review.zip](https://github.com/kussmaul/slide-poster-review/releases/latest/download/slide-poster-review.zip)**
+   (the latest release; earlier versions are on the
+   [releases page](https://github.com/kussmaul/slide-poster-review/releases)).
+2. **Put it where your agent finds skills.** The zip holds one folder, `slide-poster-review`.
+   Unzip it into the skills folder in the table, so that you get
+   `…/skills/slide-poster-review/SKILL.md`. (Windows' "Extract All" suggests a folder named after
+   the zip; remove that last part of the path, or you get `slide-poster-review` twice.)
+
+   | Agent | For all your projects | For one project |
+   |---|---|---|
+   | Claude Code | `~/.claude/skills/` | `.claude/skills/` in the project |
+   | Claude apps (claude.ai, desktop) | Don't unzip: upload the zip as a skill in Settings. Code execution must be on. | |
+   | Other agents, e.g. GitHub Copilot in VS Code | `~/.agents/skills/` | `.agents/skills/` in the project |
+
+   `~` is your home folder (`C:\Users\you` on Windows). Many agents look in `.agents/skills/`,
+   the shared convention described at [agentskills.io](https://agentskills.io); if yours doesn't,
+   its documentation names its skills folder. Agents that support skills are listed in the
+   [Client Showcase](https://agentskills.io/clients).
+3. **Install the Python packages** once, with the Python the agent uses, e.g. for Claude Code:
+
+   ```
+   pip install -r ~/.claude/skills/slide-poster-review/requirements.txt
+   ```
+
+   If you skip this, the agent installs them the first time a script needs them.
+4. **Start a new session** of your agent, so it finds the new skill.
+
+What the computer running the scripts needs:
+- **Python 3.10 or later.**
+- **PowerPoint (Windows) or LibreOffice** to review .pptx files. Without either, export a PDF and
+  review that.
+- **Windows** for reading text inside images (OCR). Elsewhere that step is skipped with a note.
+
+In a cloud sandbox, such as the Claude apps, this may mean PDF input and no OCR.
+
+### Run a review
+
+Ask in plain words and name the file, e.g. "Review the slides in talk.pptx" or "Check my poster,
+poster.pdf, for accessibility". In Claude Code you can also type `/slide-poster-review talk.pptx`.
+
+The agent asks only what it doesn't already know: the print size (posters), whether the room is
+large (slides), the audience (general, second-language readers, or experts), any rubric from your
+organization, conference, course, or lab, and an abstract or learning objectives if you have one.
+Then it renders the file, measures it, judges the remaining items, and shows the scorecard. Working
+files go to `./slide-review/` in the current folder.
+
+It reports issues; it never rewrites your content.
+
+### What you can give it
 
 - **PowerPoint (.pptx)** gives the most complete review: it includes hidden slides, titles, and alt text.
   Rendering needs PowerPoint (Windows) or LibreOffice.
@@ -22,7 +84,37 @@ format would be better. Some examples:
 - A .pptx that uses fonts not installed on the reviewing computer may lay out differently from what
   your audience will see.
 
-## How text size is rated
+## The scorecard
+
+- The scorecard has a summary row for each **section** (e.g. "Text size: 1.8 of 4"), the weighted
+  average of its items. Below it, each **item** is listed by name with its level (e.g. "Body text
+  size: Level 2").
+- The **overall** score is the weighted average of the sections. Measured accessibility sections
+  (text size, contrast) weigh more.
+- Items that haven't been assessed are listed, not counted.
+- **Issues** are ranked by how much they cost: section weight × the item's share of its section ×
+  how far it is below Level 4. Each issue gives the item name, level, and confidence, then a second
+  line of details.
+- The rubric is [rubrics/default.md](skill/slide-poster-review/rubrics/default.md). An organization,
+  conference, course, or lab can supply a context rubric that changes weights or level
+  descriptions, or adds items, by repeating item IDs. Weight 0 leaves an item or section out.
+  Three examples, with Format items, are in
+  [rubrics/examples/](skill/slide-poster-review/rubrics/examples/): a POGIL-style class session,
+  a conference poster, and a course presentation.
+
+## How ratings work
+
+Every item is rated from **Level 4** (best) to **Level 1**.
+- **Measured** items come from the scripts, each with a confidence (high or medium).
+- **Judged** items are rated by the agent against the level descriptions in the rubric. Each
+  gives its confidence and the slides it is based on.
+- Items rated slide by slide give the deck the level that at least 90% of slides reach. One bad
+  slide doesn't sink a deck, but the same problem on many slides does.
+
+Each item's levels and sources are in
+[rubrics/default.md](skill/slide-poster-review/rubrics/default.md).
+
+### Text size
 
 What matters is how big text *looks* from where people sit or stand, not its point size. So the
 review measures the **visual angle** of each letter's cap height (the height of a capital letter),
@@ -86,7 +178,7 @@ found with OCR. Windows' built-in OCR is used; on other systems it is skipped wi
 - Text too small to see at all (under 1′), which is usually hidden metadata, e.g. from embedded
   videos, is listed but not scored.
 
-## How contrast is rated
+### Contrast
 
 Contrast is the WCAG 2.x ratio between the text color and the background actually behind it,
 sampled from the rendered page. It ranges from 1:1 (invisible) to 21:1 (black on white).
@@ -108,7 +200,7 @@ sampled from the rendered page. It ranges from 1:1 (invisible) to 21:1 (black on
 - **Scoring.** As for text size, each slide is rated by its worst text, and the deck gets the level
   that 90% of slides reach. Body and supporting text are separate items.
 
-## How color is rated
+### Color
 
 About 8% of men and 0.5% of women have some color-vision deficiency, mostly red-green. WCAG 1.4.1
 asks that color never be the *only* way to convey information. Two items are measured and one is
@@ -144,7 +236,7 @@ protanopia and deuteranopia, Brettel 1997 for tritanopia, and Machado 2009 at se
 moderate deficiency. Color differences are CIELAB ΔE: "clearly different" is more than 25, "nearly
 the same" less than 10.
 
-## How readability is rated
+### Readability
 
 Readability depends on the audience, so intake asks who it is: a **general** audience, readers of
 English as a **second language**, or **experts** in the field. This is the only place the audience
@@ -180,7 +272,7 @@ prose, and slide fragments make text look easier than it is. Text found by OCR i
 readability, because misread words would count as rare. Sources are in
 [references/readability.md](skill/slide-poster-review/references/readability.md).
 
-## How layout is rated
+### Layout
 
 - **Text doesn't collide.** Text that overlaps other text (e.g. a line running into the footer) or
   is cut off at the edge of the slide. Text deliberately hidden under an opaque shape isn't a visible
@@ -196,7 +288,7 @@ Two items are judged by the agent, using counts from the layout check as pointer
 **cognitive load** (one point per slide, text the audience can glance at rather than read) and
 **data graphics** (labeled axes, direct labels, no 3-D or other distortion).
 
-## How accessibility metadata is rated
+### Accessibility metadata
 
 These matter when the file itself is shared, e.g. posted for students who use a screen reader.
 They follow WCAG and PowerPoint's Accessibility Checker, and need the .pptx:
@@ -210,25 +302,18 @@ They follow WCAG and PowerPoint's Accessibility Checker, and need the .pptx:
 
 Sources are in [references/standards.md](skill/slide-poster-review/references/standards.md).
 
-## The scorecard
+### Content and format
 
-- The scorecard has a summary row for each **section** (e.g. "Text size: 1.8 of 4"), the weighted
-  average of its items. Below it, each **item** is listed by name with its level (e.g. "Body text
-  size: Level 2").
-- The **overall** score is the weighted average of the sections. Measured accessibility sections
-  (text size, contrast) weigh more.
-- Items that haven't been assessed are listed, not counted.
-- **Issues** are ranked by how much they cost: section weight × the item's share of its section ×
-  how far it is below Level 4. Each issue gives the item name, level, and confidence, then a second
-  line of details.
-- The rubric is [rubrics/default.md](skill/slide-poster-review/rubrics/default.md). An organization,
-  conference, course, or lab can supply a context rubric that changes weights or level
-  descriptions, or adds items, by repeating item IDs. Weight 0 leaves an item or section out.
-  Three examples, with Format items, are in
-  [rubrics/examples/](skill/slide-poster-review/rubrics/examples/): a POGIL-style class session,
-  a conference poster, and a course presentation.
+Judged by the agent from the slide text and page images:
+- **Key ideas are identifiable.** Could a viewer state the 2-5 key ideas from the slides alone? Titles
+  that state messages, emphasis, and a summary help; titles that only name topics don't. An abstract
+  or learning objectives, if given, tell the agent what the key ideas should be.
+- **Format items** come from a context rubric, e.g. required slides or parts, citations, and length
+  for the time limit. See [The scorecard](#the-scorecard) for how a context rubric is applied.
 
-## Repository layout
+## For developers
+
+### Repository layout
 
 ```
 skill/slide-poster-review/   the skill itself (this folder is what gets installed)
@@ -236,13 +321,16 @@ skill/slide-poster-review/   the skill itself (this folder is what gets installe
   scripts/                   render.py, extract_text.py, font_size.py, ...
   rubrics/                   rubric items and viewing presets
   references/                evidence and standards notes
-tests/                       pytest suite (uses local files in test-inputs/, not in git)
-tools/                       dev tools, e.g. review_test_inputs.py (not shipped)
+tests/                       pytest suite; also uses real decks in test-inputs/ (not in git)
+  decks/                     generated decks with known levels (tools/make_test_decks.py)
+tools/                       dev tools, e.g. build_skill_zip.py, eval_judgments.py (not shipped)
+.github/workflows/           release.yml: builds the skill zip for each version tag
+evals/                       reports from blind evals of the judged items
 DESIGN.md                    design brief
 QUEUE.md                     task queue
 ```
 
-## Development
+### Development
 
 ```
 py -3.14 -m venv .venv
@@ -287,3 +375,19 @@ python skill/slide-poster-review/scripts/scorecard.py     output/deck-pptx
 
 `render.py` reuses an earlier render when the input file, settings, and installed fonts are unchanged.
 Use `--force` to render again.
+
+To try changes to the skill without a release, link the skill folder of your clone into a skills
+folder (Windows: `mklink /J %USERPROFILE%\.claude\skills\slide-poster-review skill\slide-poster-review`
+in cmd; elsewhere `ln -s "$PWD/skill/slide-poster-review" ~/.claude/skills/`).
+
+### Releases
+
+The download link in [Install](#install) points to the zip attached to the latest GitHub release.
+To publish one, push a version tag; `.github/workflows/release.yml` builds the zip with
+`tools/build_skill_zip.py` and creates the release:
+
+```
+git tag v0.1.0
+git push origin v0.1.0
+.venv/Scripts/python tools/build_skill_zip.py     # to build dist/slide-poster-review.zip locally
+```
